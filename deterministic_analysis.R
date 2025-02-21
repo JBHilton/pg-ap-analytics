@@ -299,9 +299,14 @@ full_names <- sapply(1:(n_subpops*n_states),
 # Build blocks containing transition matrices for each subpopulation
 matrix_blocks <- lapply(subpop_names,
                         FUN = function(subpop_id){
-                          return(build_markov_submodel(subpop_id)[[1]])})
+                          A = build_markov_submodel(subpop_id)[[1]]
+                          return(A)})
 
+# Assemble into block matrix containing all events for all subpopulations
 full_transition_matrix <- bdiag(matrix_blocks)
+rownames(full_transition_matrix) <- full_names
+colnames(full_transition_matrix) <- full_names
+
 full_utility_df <- data.frame(event = 0,
                             utility = )
 
