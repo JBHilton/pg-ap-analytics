@@ -98,13 +98,13 @@ start_age_male <- 62
 start_age_female <- 69
 
 # List parameters for decision tree
-p_uptake <- .75
+pc_uptake <- .75
 pc_test_cost <- 100.
 pc_resource_cost <- 100.
 pc_sens <- .95
 pc_spec <- .95
 
-p_uptake <- .75
+l_uptake <- .75
 l_test_cost <- 100.
 l_resource_cost <- 100.
 l_sens <- .95
@@ -317,10 +317,12 @@ run_forward <- function(test = "sc"){
     if (test == "pc"){
       sens <- pc_sens
       spec <- pc_spec
+      test_uptake <- pc_uptake
     }
     if (test == "l"){
       sens <- l_sens
       spec <- l_spec
+      test_uptake <- l_uptake
     }
     A_results_lof_lof <- implement_A(true_genotype = "lof",
                                  test_result = "lof")
@@ -343,14 +345,21 @@ run_forward <- function(test = "sc"){
       (1 - lof_prev) * (1 - sens) * A_results_no_lof_lof[, -1] + # False positive
       (1 - lof_prev) * sens * A_results_no_lof_no_lof[, -1] # True negative
     
+    # Probability of going into standard care is probability of not testing plus
+    # probability of testing and then ignoring. Note that this is a bit messy
+    # because test uptake is currently implemented outside of the A subroutine
+    # but whether the clinician follows the test is implemented within it.
+    prob_sc <- (1 - test_uptake) + test_uptake * A_results_ave$prob[5]
+    
     # Now add results to patient status
-    patient_status$prob <- patient_status$prob *
+    patient_status$prob <- test_uptake *
+      patient_status$prob *
       A_results_ave$prob[1:4]  +
-      A_results_ave$prob[5] * (lof_prev * sc_results_lof$prob + # This adds possibility of reverting to standard care
+      prob_sc * (lof_prev * sc_results_lof$prob + # This adds possibility of reverting to standard care
          (1 - lof_prev) * sc_results_no_lof$prob)
     patient_status$exp_cost <- patient_status$exp_cost +
-      A_results_ave$cost[1:4] +
-      A_results_ave$prob[5] *
+      test_uptake * A_results_ave$cost[1:4] +
+      prob_sc *
     (lof_prev * sc_results_lof$prob * sc_results_lof$cost +
       (1 - lof_prev) * sc_results_no_lof$prob * sc_results_no_lof$cost)
   }
@@ -571,4 +580,5 @@ utility_df %>%
   ggplot(aes(x = time_step,
              y = exp_util,
              colour = subpop)) +
-  geom_line()
+  geom_line() +
+  labs(title = paste("Test strategy", test))
