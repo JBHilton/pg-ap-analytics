@@ -21,25 +21,45 @@
 # recorded genotype is "no_lof". Any other string will be interpreted as
 # indicating the wild type loss of function genotype.
 
-library("data.tree")
+# Flag to determine whether to convert rates in the data to probabilities
+CONVERSIONS_REQUIRED <- FALSE
+
+# Next flag is here to suppress some code which isn't currently useful but might
+# be at some point
+SUBPOP_PLOTTING <- FALSE
+
+# Parameter for point in year when death occurs given it occurs within the
+# decision tree
+AVE_TIME_TO_DEATH <- 0.5
+
 library("dplyr")
+library("expm")
 library("ggplot2")
+library("Matrix")
 library("readxl")
 library("stringr")
 library("tidyverse")
 
 # Set time horizon
-time_hor <- 10
+time_hor <- 40
 
 #### Start by setting up names ####
 # There are four subpopulations based on genotype and drug, and six health
 # states in the Markov cohort model.
 
 # Define subpopulations
-subpop_names <- c("clo_lof",
+
+# Keeping this for now in case we revert and want a quick reference point for
+# exact formatting
+old_subpop_names <- c("clo_lof",
                   "clo_no_lof",
                   "tic",
                   "pra")
+
+subpop_names <- c("ac_lof",
+                  "ac_no_lof",
+                  "at",
+                  "ap")
 
 n_subpops <- length(subpop_names)
 
@@ -64,79 +84,142 @@ full_names <- sapply(1:(n_subpops*n_states),
 
 #### Now build the decision tree model ####
 
-parameters_STEMI <- read_xlsx("data-inputs/MasterFile-PGXACS.xlsx",
-                              sheet = "Parameters.STEMI")[-1,] %>% # Skip row 1 since this doesn't match the format of other rows
+parameters_STEMI <- read_xlsx("data-inputs/masterfile_240325.xlsx",
+                              sheet = "Prameters.STEMI") %>% # Skip row 1 since this doesn't match the format of other rows
   rename_all(make.names) %>% # Converts parameter names in valid R names
+  rename_all(.funs = function(name){
+    name %>%
+      make.names() %>%
+      str_replace("parmeter..STEMI.",
+                      "parameter.list") %>%
+      str_replace_all("\\.\\.",
+                      ".")}) %>% # Converts parameter names in valid R names and corrects typos
   type.convert(as.is = TRUE) %>% # Make sure numbers are numbers, not characters
   filter(!is.na(parameter.list)) %>% # Remove empty lines
-  mutate(parameter.list = parameter.list %>%
+  filter(!(parameter.list == "CE threshold")) %>% # Remove this since a single value isn't provided
+  mutate(variable.name = variable.name %>%
            str_to_lower() %>% # Standardise parameter names for use with other objects
            str_replace_all(" ", "_") %>%
            str_replace_all("-", "_") %>%
            str_replace_all("with_", "") %>%
            str_replace_all("in_", "") %>%
            str_replace_all("standard_care", "sc") %>%
-           str_replace_all("clopidogrel_no_lof", "clo_no_lof") %>%
-           str_replace_all("clopidogrel", "clo_lof") %>%
-           str_replace_all("ticagrelor", "tic") %>%
-           str_replace_all("prasugrel", "pra"))
+           str_replace_all("reinfarction", "mi") %>%
+           str_replace_all("ac$", "ac_lof") %>%
+           str_replace_all("mbleed", "minor_bleed") %>%
+           str_replace_all("maj_bleed", "major_bleed")) %>%
+  mutate(value = as.numeric(value)) # Convert values from characters to numbers
 
-# Function to convert rate parameters to probability of happening within 1 time unit
-rates_to_probs <- function(rate, unit){
-  return(ifelse(grepl("rate", unit),
-         yes = 1 - exp(-rate),
-         no = NA))
-}
-
-# Add these probabilities to parameter table
-parameters_STEMI <- parameters_STEMI %>%
-  mutate(prob = rates_to_probs(mean, unit))
+# Convert hazard rates to probabilities:
+parameters_STEMI$value[which(parameters_STEMI$type=="hazard rate")] <-
+  1 - exp( - parameters_STEMI$value[which(parameters_STEMI$type=="hazard rate")])
 
 
 # Start ages specified on row 1 of parameter matrices:
-start_age_male <- 62
-start_age_female <- 69
+start_age_female <- parameters_STEMI$value[parameters_STEMI$variable.name=="start_age_female"]
+start_age_male <- parameters_STEMI$value[parameters_STEMI$variable.name=="start_age_male"]
 
 # List parameters for decision tree
-pc_uptake <- .75
-pc_test_cost <- 100.
-pc_resource_cost <- 100.
-pc_sens <- .95
-pc_spec <- .95
+pc_uptake <- parameters_STEMI$value[parameters_STEMI$variable.name=="prob_test_order"]
+pc_test_cost <- parameters_STEMI$value[parameters_STEMI$variable.name=="gendrive_test_price"]
+pc_sens <- 1.
+pc_spec <- 1.
 
-l_uptake <- .75
-l_test_cost <- 100.
-l_resource_cost <- 100.
-l_sens <- .95
-l_spec <- .95
+# In practice we don't model lab testing. I've left outlines of this in the code
+# in case we later decide we do want to make this comparison.
+# l_uptake <- parameters_STEMI$value[parameters_STEMI$variable.name=="probability_of_ordering_test"]
+# l_test_cost <- parameters_STEMI$value[parameters_STEMI$variable.name=="gendrive_test_price"]
+# l_resource_cost <- 100.
+# l_sens <- .95
+# l_spec <- .95
 
-p_test_followed = .9
+p_test_followed = parameters_STEMI$value[parameters_STEMI$variable.name=="prob_test_followed"]
 
-p_clo_sc <- parameters_STEMI$mean[parameters_STEMI$parameter.list=="proportion_of_clo_lof_sc"] # Proportion prescriped clopidogrel under standard care
-p_tic_sc <- parameters_STEMI$mean[parameters_STEMI$parameter.list=="proportion_of_tic_sc"]  # Proportion prescriped ticagrelor under standard care
-p_pra_sc <- parameters_STEMI$mean[parameters_STEMI$parameter.list=="proportion_of_pra_sc"]  # Proportion prescriped prasugrel under standard care
+p_ac_sc <- parameters_STEMI$value[parameters_STEMI$variable.name=="proportion_ac_standard"] # Proportion prescriped clopidogrel under standard care
+p_at_sc <- parameters_STEMI$value[parameters_STEMI$variable.name=="proportion_at_standard"]  # Proportion prescriped ticagrelor under standard care
+p_ap_sc <- parameters_STEMI$value[parameters_STEMI$variable.name=="proportion_ap_standard"]  # Proportion prescriped prasugrel under standard care
 
-p_tic_A <- .5 # Proportion prescriped ticagrelor during subroutine A
-p_pra_A <- .5 # Proportion prescriped prasugrel during subroutine A
+# Assign probabilities of AT and AP prescription following testing, assuming
+# same relative proportions as under standard care.
+p_at_A <- p_at_sc / (p_at_sc + p_ap_sc) # Proportion prescriped ticagrelor during subroutine A
+p_ap_A <- p_ap_sc / (p_at_sc + p_ap_sc) # Proportion prescriped prasugrel during subroutine A
 
-lof_prev_eu <- .30
-lof_prev_as <- .58
-
+# Assign prevalences
+lof_prev_eu <- parameters_STEMI$value[parameters_STEMI$variable.name=="prevalence_lof_base_case"]
+lof_prev_as <- parameters_STEMI$value[parameters_STEMI$variable.name=="prevalence_lof_sensitivity"]
 lof_prev <- lof_prev_eu
 
-drug_costs <- data.frame(drug = c("clo", "tic", "pra"),
-                         cost = c(100, 100, 100))
+# Get loading doses for drugs. Note that ac_lof and ac_no_lof are identical, but
+# for formatting purposes it's more convenient to use the same subpopulations as
+# the model.
+ld_costs <- data.frame(drug = c("ac_lof",
+                                "ac_no_lof",
+                                "at",
+                                "ap"),
+                         cost = c(parameters_STEMI$value[parameters_STEMI$variable.name=="ld_clop_600"],
+                                  parameters_STEMI$value[parameters_STEMI$variable.name=="ld_clop_600"],
+                                  parameters_STEMI$value[parameters_STEMI$variable.name=="ld_tica_180"],
+                                  parameters_STEMI$value[parameters_STEMI$variable.name=="ld_pras_60"]))
 
+# Get daily costs for drugs
+daily_costs <- data.frame(drug = c("ac_lof",
+                                   "ac_no_lof",
+                                   "at",
+                                   "ap"),
+                       cost = parameters_STEMI$value[parameters_STEMI$variable.name=="day_cost_asa"] +
+                         c(parameters_STEMI$value[parameters_STEMI$variable.name=="day_cost_clop"],
+                                parameters_STEMI$value[parameters_STEMI$variable.name=="day_cost_clop"],
+                                parameters_STEMI$value[parameters_STEMI$variable.name=="day_cost_clop"],
+                                parameters_STEMI$value[parameters_STEMI$variable.name=="day_cost_clop"]))
+
+# Get expected durations of courses by event
+course_dur_by_event_sc <- data.frame(event = c("no_event",
+                                               "stroke",
+                                               "mi",
+                                               "death"),
+                                     duration = c(parameters_STEMI$value[parameters_STEMI$variable.name=="md_no_event"],
+                                                  parameters_STEMI$value[parameters_STEMI$variable.name=="md_mi_stroke_sc"],
+                                                  parameters_STEMI$value[parameters_STEMI$variable.name=="md_mi_stroke_sc"],
+                                                  AVE_TIME_TO_DEATH * parameters_STEMI$value[parameters_STEMI$variable.name=="md_mi_stroke_sc"])) # Assume death occurs half way through course
+course_dur_by_event_pc <- data.frame(event = c("no_event",
+                                               "stroke",
+                                               "mi",
+                                               "death"),
+                                     duration = c(parameters_STEMI$value[parameters_STEMI$variable.name=="md_no_event"],
+                                                  parameters_STEMI$value[parameters_STEMI$variable.name=="md_mi_stroke_pc"],
+                                                  parameters_STEMI$value[parameters_STEMI$variable.name=="md_mi_stroke_pc"],
+                                                  AVE_TIME_TO_DEATH * parameters_STEMI$value[parameters_STEMI$variable.name=="md_mi_stroke_pc"])) # Assume death occurs half way through course
+
+# Now get course costs by combination of drug and event (bleeds do not affect
+# costs here)
+drug_course_costs <-  merge(daily_costs, course_dur_by_event_sc) %>% # For now just do standard care - I don't see why times should be different under PC
+  mutate(drug_event = paste(drug, event, sep="_"),
+         cost = cost * duration) %>%
+  select(-c(drug, event, duration))
+
+# Utilities associated with events:
 event_utilities <- parameters_STEMI %>%
   filter(grepl("utility", parameter.list)) %>%
-  select(c(parameter.list, mean)) %>%
-  mutate(parameter.list = gsub("utility_of_", "", parameter.list)) %>%
-  add_row(parameter.list = "death",
-          mean = 0)
+  select(c(variable.name, value)) %>%
+  mutate(variable.name = gsub("utility_", "", variable.name) %>%
+           str_replace_all("_tree", "")) %>%
+  mutate(value = ifelse(grepl("or_bleed", variable.name), # The "or" here identifies the ones with "major" or "minor" in the name
+                        1 - value,
+                        value)) %>%
+  add_row(variable.name = "death",
+          value = AVE_TIME_TO_DEATH) # Apply 1 before death, 0 afterwards
+
+# Similar formula to get costs for DT model:
+event_costs <- parameters_STEMI %>%
+  filter(grepl("cost", parameter.list)) %>%
+  filter(grepl("tree", parameter.list)) %>%
+  select(c(variable.name, value)) %>%
+  mutate(variable.name = gsub("cost_", "", variable.name)) %>%
+  mutate(variable.name = gsub("_tree", "", variable.name))
 
 # Put some filler values in for utilities of bleeds
-minor_bleed_utility <- 0.9
-major_bleed_utility <- 0.9
+minor_bleed_utility <- event_utilities$value[event_utilities$variable.name=="minor_bleed"]
+major_bleed_utility <- event_utilities$value[event_utilities$variable.name=="major_bleed"]
 
 # Basic patient status dataframe
 
@@ -153,20 +236,20 @@ implement_sc <- function(true_genotype){
   
   # If prescribed clopidogrel then subpopulation depends on genotype, otherwise
   # just used presciption proportions.
-  p_clo_lof <- ifelse(true_genotype=="no_lof", 0, p_clo_sc)
-  p_clo_no_lof <- ifelse(true_genotype=="no_lof", p_clo_sc, 0)
-  p_tri <- p_tic_sc
-  p_pra <- p_pra_sc
+  p_ac_lof <- ifelse(true_genotype=="no_lof", 0, p_ac_sc)
+  p_ac_no_lof <- ifelse(true_genotype=="no_lof", p_ac_sc, 0)
+  p_at <- p_at_sc
+  p_ap <- p_ap_sc
   
   sc_results <- data.frame(subpops = subpop_names,
-                                     prob = c(p_clo_lof,
-                                              p_clo_no_lof,
-                                              p_tri,
-                                              p_pra),
-                           cost = c(drug_costs$cost[drug_costs$drug=="clo"],
-                                    drug_costs$cost[drug_costs$drug=="clo"],
-                                    drug_costs$cost[drug_costs$drug=="tic"],
-                                    drug_costs$cost[drug_costs$drug=="pra"]),
+                                     prob = c(p_ac_lof,
+                                              p_ac_no_lof,
+                                              p_at,
+                                              p_ap),
+                           cost = c(ld_costs$cost[ld_costs$drug=="ac"],
+                                    ld_costs$cost[ld_costs$drug=="ac"],
+                                    ld_costs$cost[ld_costs$drug=="at"],
+                                    ld_costs$cost[ld_costs$drug=="ap"]),
                            utility = c(1,
                                        1,
                                        1,
@@ -180,39 +263,39 @@ implement_A <- function(true_genotype,
   
   # If test is followed, test says no lof, and true genotype is lof, then
   # patient goes to clopidogrel_lof
-  p_clo_lof <- p_test_followed *
+  p_ac_lof <- p_test_followed *
     ifelse(test_result=="no_lof", 1, 0) *  
     ifelse(true_genotype=="no_lof", 0, 1)
   
   # If test is followed, test says no lof, and true genotype is no_lof, then
   # patient goes to clopidogrel_no_lof
-  p_clo_no_lof <- p_test_followed *
+  p_ac_no_lof <- p_test_followed *
     ifelse(test_result=="no_lof", 1, 0) *  
     ifelse(true_genotype=="no_lof", 1, 0)
   
   # If test is followed and test says lof, and true genotype is lof, then
   # patient is prescribed one of the other drugs
-  p_tri <- p_test_followed *
+  p_at <- p_test_followed *
     ifelse(test_result=="no_lof", 0, 1) * 
-    p_tic_A
-  p_pra <- p_test_followed *
+    p_at_A
+  p_ap <- p_test_followed *
     ifelse(test_result=="no_lof", 0, 1) * 
-    p_pra_A
+    p_ap_A
   
-  subroutine_A_results <- data.frame(subpop = c("clo_lof",
-                                                   "clo_no_lof",
-                                                   "tic",
-                                                   "pra",
+  subroutine_A_results <- data.frame(subpop = c("ac_lof",
+                                                   "ac_no_lof",
+                                                   "at",
+                                                   "ap",
                                                    "sc"),
-             prob = c(p_clo_lof,
-                      p_clo_no_lof,
-                      p_tri,
-                      p_pra,
+             prob = c(p_ac_lof,
+                      p_ac_no_lof,
+                      p_at,
+                      p_ap,
                       1 - p_test_followed), # Go to standard care if test not followed
-             cost = c(drug_costs$cost[drug_costs$drug=="clo"],
-                      drug_costs$cost[drug_costs$drug=="clo"],
-                      drug_costs$cost[drug_costs$drug=="tic"],
-                      drug_costs$cost[drug_costs$drug=="pra"],
+             cost = c(ld_costs$cost[ld_costs$drug=="ac_lof"],
+                      ld_costs$cost[ld_costs$drug=="ac_no_lof"],
+                      ld_costs$cost[ld_costs$drug=="at"],
+                      ld_costs$cost[ld_costs$drug=="ap"],
                       0),
              utility = c(1,
                          1,
@@ -223,21 +306,39 @@ implement_A <- function(true_genotype,
 }
 
 implement_B <- function(subpop_id){
-  subpop_pars <- parameters_STEMI[grepl(paste(subpop_id, sep=""), # Gather subpopulation-specific parameters plus utility weights
-                                        parameters_STEMI$parameter.list),] %>%
-    mutate(parameter.list = gsub(paste("_", subpop_id, sep=""), "", parameter.list))
+  subpop_pars <- parameters_STEMI[grepl(paste(subpop_id, "$", sep=""), # Gather subpopulation-specific parameters
+                                        parameters_STEMI$variable.name),] %>%
+    filter(!grepl("hr_", variable.name)) %>%
+    mutate(variable.name = variable.name %>% str_replace_all(paste("_", subpop_id, sep=""), ""))
   
   # Get probabilities of each event from dataframe:
-  minor_bleed_prob <- subpop_pars$prob[
-    grep("minor_bleeding", subpop_pars$parameter.list)]
-  major_bleed_prob <- subpop_pars$prob[
-    grep("minor_bleeding", subpop_pars$parameter.list)]
-  reinfarction_prob <- subpop_pars$prob[
-    grep("reinfarction", subpop_pars$parameter.list)]
-  stroke_prob <- subpop_pars$prob[
-    grep("stroke", subpop_pars$parameter.list)]
-  death_prob <- subpop_pars$prob[
-    grep("all_cause_mortality", subpop_pars$parameter.list)]
+  minor_bleed_prob <- subpop_pars$value[
+    grep("minor_bleed", subpop_pars$variable.name)]
+  major_bleed_prob <- subpop_pars$value[
+    grep("major_bleed", subpop_pars$variable.name)]
+  mi_prob <- subpop_pars$value[
+    grep("mi$", subpop_pars$variable.name)]
+  stroke_prob <- subpop_pars$value[
+    grep("stroke", subpop_pars$variable.name)]
+  death_prob <- subpop_pars$value[
+    grep("death", subpop_pars$variable.name)]
+  
+  mi_cost <- event_costs$value[event_costs$variable.name=="mi"] +
+    drug_course_costs$cost[drug_course_costs$drug_event==paste(subpop_id,
+                                                               "mi",
+                                                               sep="_")]
+  stroke_cost <- event_costs$value[event_costs$variable.name=="stroke"] +
+    drug_course_costs$cost[drug_course_costs$drug_event==paste(subpop_id,
+                                                               "stroke",
+                                                               sep="_")]
+  death_cost <- event_costs$value[event_costs$variable.name=="death"] +
+    drug_course_costs$cost[drug_course_costs$drug_event==paste(subpop_id,
+                                                               "death",
+                                                               sep="_")]
+  no_event_cost <- event_costs$value[event_costs$variable.name=="no_event"] +
+    drug_course_costs$cost[drug_course_costs$drug_event==paste(subpop_id,
+                                                               "no_event",
+                                                               sep="_")]
   
   bleed_results <- data.frame(event = c("minor_bleed",
                                      "major_bleed",
@@ -245,8 +346,10 @@ implement_B <- function(subpop_id){
                            prob = c(minor_bleed_prob,
                                     major_bleed_prob,
                                     1 - minor_bleed_prob - major_bleed_prob),
-                           utility = c(minor_bleed_utility,
-                                       major_bleed_utility,
+                           utility = c(event_utilities$value[
+                             event_utilities$variable.name=="minor_bleed"],
+                             event_utilities$value[
+                               event_utilities$variable.name=="major_bleed"],
                                        1))
   exp_util_bleed <- sum(bleed_results$prob * bleed_results$utility)
   
@@ -255,18 +358,18 @@ implement_B <- function(subpop_id){
                                      "stroke",
                                      "death",
                                      "no_event"),
-                              prob = c(reinfarction_prob,
+                              prob = c(mi_prob,
                                        stroke_prob,
                                        death_prob,
-                                       1 - reinfarction_prob - stroke_prob - death_prob),
-                              cost = c(0,
-                                       0,
-                                       0,
-                                       0),
-                           utility = exp_util_bleed * c(event_utilities$mean[event_utilities$parameter.list == "utility_of_mi"],
-                                       event_utilities$mean[event_utilities$parameter.list == "utility_of_stroke"],
-                                       0,
-                                       event_utilities$mean[event_utilities$parameter.list == "utility_of_no_further_event"]))
+                                       1 - mi_prob - stroke_prob - death_prob),
+                              cost = c(mi_cost,
+                                       stroke_cost,
+                                       death_cost,
+                                       no_event_cost),
+                           utility = exp_util_bleed * c(event_utilities$value[event_utilities$variable.name == "mi"],
+                                       event_utilities$value[event_utilities$variable.name == "stroke"],
+                                       event_utilities$value[event_utilities$variable.name == "death"],
+                                       event_utilities$value[event_utilities$variable.name == "no_event"]))
   return(subroutine_B_results)
 }
 
@@ -425,110 +528,154 @@ base_transition_matrix <- matrix(0,
                             dimnames = list(markov_states,
                                             markov_states))
 
-build_markov_submodel <- function(subpop_id){
-  subpop_pars <- parameters_STEMI[grepl(paste(subpop_id, "|utility", sep=""), # Gather subpopulation-specific parameters plus utility weights
-                                        parameters_STEMI$parameter.list),] %>%
-    mutate(parameter.list = gsub(paste("_", subpop_id, sep=""), "", parameter.list))
+build_markov_submodel <- function(age,
+                               mort_prob_by_age = mort_prob_by_age,
+                               stroke_prob = .043,
+                               mi_prob = .01){
   
-  subpop_transition_matrix <- base_transition_matrix
+  transition_matrix <- matrix(0,
+                              nrow = n_states,
+                              ncol = n_states,
+                              dimnames = list(markov_states,
+                                              markov_states))
   
   # Get probabilities of each event from dataframe:
   
   # Outflow from no_event
-  subpop_transition_matrix["no_event", "mi"] <- subpop_pars$prob[
+  transition_matrix["no_event", "mi"] <- subpop_pars$value[
     grep("reinfarction", subpop_pars$parameter.list)]
-  subpop_transition_matrix["no_event", "stroke"] <- subpop_pars$prob[
+  transition_matrix["no_event", "stroke"] <- subpop_pars$value[
     grep("^stroke", subpop_pars$parameter.list)]
-  subpop_transition_matrix["no_event", "death"] <- subpop_pars$prob[
-    grep("all_cause_mortality", subpop_pars$parameter.list)]
+  transition_matrix["no_event", "death"] <- mortality_prob_by_age[
+    which(age==age)]
   
   # Outflow from mi
-  subpop_transition_matrix["mi", "post_mi"] <- 1. - subpop_pars$prob[
-    grep("all_cause_mortality", subpop_pars$parameter.list)]
-  subpop_transition_matrix["mi", "death"] <- subpop_pars$prob[
-    grep("all_cause_mortality", subpop_pars$parameter.list)]
+  transition_matrix["mi", "post_mi"] <- 1. - mortality_prob_by_age[
+    which(age==age)]
+  transition_matrix["mi", "death"] <- mortality_prob_by_age[
+    which(age==age)]
   
   # Outflow from post_mi
-  subpop_transition_matrix["post_mi", "death"] <- subpop_pars$prob[
-    grep("all_cause_mortality", subpop_pars$parameter.list)]
+  transition_matrix["post_mi", "death"] <- mortality_prob_by_age[
+    which(age==age)]
   
   # Outflow from stroke
-  subpop_transition_matrix["stroke", "post_stroke"] <- 1. - subpop_pars$prob[
-    grep("all_cause_mortality", subpop_pars$parameter.list)]
-  subpop_transition_matrix["stroke", "death"] <- subpop_pars$prob[
-    grep("all_cause_mortality", subpop_pars$parameter.list)]
+  transition_matrix["stroke", "post_stroke"] <- 1. - mortality_prob_by_age[
+    which(age==age)]
+  transition_matrix["stroke", "death"] <- mortality_prob_by_age[
+    which(age==age)]
   
   # Outflow from post_stroke
-  subpop_transition_matrix["post_stroke", "death"] <- subpop_pars$prob[
-    grep("all_cause_mortality", subpop_pars$parameter.list)]
+  transition_matrix["post_stroke", "death"] <- mortality_prob_by_age[
+    which(age==age)]
   
-  diag(subpop_transition_matrix) <- 1 - rowSums(subpop_transition_matrix)
+  diag(transition_matrix) <- 1 - rowSums(transition_matrix)
   
-  # Get utilities attached to each event
-  no_event_util <- subpop_pars$mean[
-    grep("utility_of_no_further_event", subpop_pars$parameter.list)]
-  mi_util <- subpop_pars$mean[
-    grep("utility_of_mi", subpop_pars$parameter.list)]
-  post_mi_util <- subpop_pars$mean[
-    grep("utility_of_post_mi", subpop_pars$parameter.list)]
-  stroke_util <- subpop_pars$mean[
-    grep("utility_of_mi", subpop_pars$parameter.list)]
-  post_stroke_util <- subpop_pars$mean[
-    grep("utility_of_post_stroke", subpop_pars$parameter.list)]
-  death_util <- 0
-  
-  subpop_util <- data.frame(event = markov_states,
-                            utility = c(no_event_util,
-                                        stroke_util,
-                                        post_stroke_util,
-                                        mi_util,
-                                        post_mi_util,
-                                        death_util))
-  return(list(subpop_transition_matrix,
-              subpop_util))
+  return(transition_matrix)
 }
 
+# Read in age/health state-dependent mortality rates:
+mortality_prob_by_age <- read_xlsx("data-inputs/masterfile_240325.xlsx",
+                                   sheet = "time_event_mortality")
 
+# Write in Markov parameters directly (these come from the literature)
+markov_pars <- data.frame(parameter.list = c("mi",
+                                             "stroke"),
+                          value = c(.043,
+                                    .0112))
 
-# Build blocks containing transition matrices for each subpopulation
-matrix_blocks <- lapply(subpop_names,
-                        FUN = function(subpop_id){
-                          A = build_markov_submodel(subpop_id)[[1]]
-                          return(A)})
+# Load utilities and add zeros for death
+markov_utils <- read_xlsx("data-inputs/masterfile_240325.xlsx",
+                          sheet = "time_event_utility") %>%
+  mutate(death = 0) %>%
+  select(all_of(markov_states)) # Last step just makes sure ordering matches model
 
-# Assemble into block matrix containing all events for all subpopulations
-full_transition_matrix <- bdiag(matrix_blocks) %>%
-  as.matrix()
-rownames(full_transition_matrix) <- full_names
-colnames(full_transition_matrix) <- full_names
+# Extract costs from main parameter table
+markov_costs <- parameters_STEMI %>%
+  filter(grepl("cost", parameter.list)) %>%
+  filter(grepl("markov", parameter.list)) %>%
+  select(c(variable.name, value)) %>%
+  mutate(variable.name = gsub("cost_", "", variable.name)) %>%
+  mutate(variable.name = gsub("_markov", "", variable.name)) %>%
+  add_row(variable.name = "death",
+          value = event_costs$value[event_costs$variable.name=="death"]) %>% # Assign same cost to deaths as in tree
+  arrange(factor(variable.name, levels = markov_states))
+  
 
-# Add utility by state:
-util_by_state <- replicate(n_subpops,
-                           event_utilities,
-                           simplify = FALSE) %>%
-  bind_rows()
+# Function for building single-population Markov model
+# This is almost identical to build_markov_submodel, but without string
+# matching etc for choosing the subpopulation.
+build_markov_model <- function(tstep){
+  
+  transition_matrix <- matrix(0,
+                              nrow = n_states,
+                              ncol = n_states,
+                              dimnames = list(markov_states,
+                                              markov_states))
+  
+  # Get probabilities of each event from dataframe:
+  
+  # Outflow from no_event
+  transition_matrix["no_event", "mi"] <- markov_pars$value[
+    grep("mi", markov_pars$parameter.list)]
+  transition_matrix["no_event", "stroke"] <- markov_pars$value[
+    grep("^stroke", markov_pars$parameter.list)]
+  transition_matrix["no_event", "death"] <- mortality_prob_by_age$no_event[tstep]
+  
+  # Outflow from mi
+  transition_matrix["mi", "post_mi"] <- 1. - mortality_prob_by_age$mi[tstep]
+  transition_matrix["mi", "death"] <- mortality_prob_by_age$mi[tstep]
+  
+  # Outflow from post_mi
+  transition_matrix["post_mi", "death"] <- mortality_prob_by_age$post_mi[tstep]
+  
+  # Outflow from stroke
+  transition_matrix["stroke", "post_stroke"] <- 1. - mortality_prob_by_age$stroke[tstep]
+  transition_matrix["stroke", "death"] <- mortality_prob_by_age$stroke[tstep]
+  
+  # Outflow from post_stroke
+  transition_matrix["post_stroke", "death"] <- mortality_prob_by_age$post_stroke[tstep]
+  
+  diag(transition_matrix) <- 1 - rowSums(transition_matrix)
+  
+  
+  return(transition_matrix)
+}
+
 
 #### Now run model ####
 # The prob column from the dataframe outputted by the run_forward function is
 # the initial condition for the Markov model.
 
 # Choose time horizon
-n_tsteps <- 10
+n_tsteps <- 40
 
 # Choose test to analyse
 test <- "pc"
 
+# Run decision tree analysis
 pc_dt_results <- run_forward(test)
 
-P0 <- as.vector(pc_dt_results$prob)
+# Marginalise over drug subpopulations to get an initial condition for Markov
+# model
+grouped_results <- pc_dt_results %>%
+  mutate(event = subpop %>%
+           str_remove_all(paste(paste(subpop_names, collapse = "_|"),
+                                "_",
+                                sep = "")))
+P0 <- sapply(markov_states,
+                   FUN=function(event){
+                     sum(grouped_results$prob[grouped_results$event == event])}
+                   )
+
 markov_trace <- sapply(1:n_tsteps,
                         FUN = function(t){
-                          P0 %*% (full_transition_matrix %^% t)
+                          P0 %*% (build_markov_model(t) %^% t)
                           }
                         ) %>%
   t() %>%
   as.data.frame() %>%
-  `colnames<-`(full_names) %>%
+  `colnames<-`(markov_states) %>%
   mutate(time_step = 1:n_tsteps)
 
 # We can get, for example, a plot of expected strokes per capita per year, split
@@ -549,10 +696,99 @@ stroke_plot_df %>%
 
 # Calculate expected utility over time:
 utility_df <- data.frame(time_step = 1:n_tsteps,
-                         allpop_util = as.matrix(markov_trace %>%
-                                                select(-time_step)) %*%
-                           as.matrix(util_by_state$mean))
+                         utility = rowSums(as.matrix(markov_trace %>%
+                                                select(-time_step)) *
+                           as.matrix(markov_utils)))
 
+#### ICER calculation ####
+# Now that we've seen how the modelling workflow works, let's calculate an ICER
+# for point of care vs standard care:
+
+
+# Run decision tree analysis
+dt_results_pc <- run_forward("pc") %>%
+  mutate(event = subpop %>%
+           str_remove_all(paste(paste(subpop_names, collapse = "_|"),
+                                "_",
+                                sep = "")))
+
+# Expected costs at DT stage:
+dt_pc_cost <- sum(dt_results_pc$prob * dt_results_pc$exp_cost)
+
+P0_pc <- sapply(markov_states,
+             FUN=function(event){
+               sum(dt_results_pc$prob[dt_results_pc$event == event])}
+)
+
+MT_pc <- sapply(1:n_tsteps,
+                       FUN = function(t){
+                         P0_pc %*% (build_markov_model(t) %^% t)
+                       }
+) %>%
+  t() %>%
+  as.data.frame() %>%
+  `colnames<-`(markov_states) %>%
+  mutate(time_step = 1:n_tsteps)
+
+
+# Calculate expected utility over time:
+utility_pc <- data.frame(time_step = 1:n_tsteps,
+                         utility = rowSums(as.matrix(MT_pc %>%
+                                                           select(-time_step)) *
+                                                 as.matrix(markov_utils)))
+# Expected costs:
+MC_costs_pc <- data.frame(time_step = 1:n_tsteps,
+                         cost = rowSums(as.matrix(MT_pc %>%
+                                                       select(-time_step)) %*%
+                                             as.matrix(markov_costs$value)))
+
+# Now do sc
+
+# Run decision tree analysis
+dt_results_sc <- run_forward("sc") %>%
+  mutate(event = subpop %>%
+           str_remove_all(paste(paste(subpop_names, collapse = "_|"),
+                                "_",
+                                sep = "")))
+
+# Expected costs at DT stage:
+dt_sc_cost <- sum(dt_results_sc$prob * dt_results_sc$exp_cost)
+
+P0_sc <- sapply(markov_states,
+                FUN=function(event){
+                  sum(dt_results_sc$prob[dt_results_sc$event == event])}
+)
+
+MT_sc <- sapply(1:n_tsteps,
+                FUN = function(t){
+                  P0_sc %*% (build_markov_model(t) %^% t)
+                }
+) %>%
+  t() %>%
+  as.data.frame() %>%
+  `colnames<-`(markov_states) %>%
+  mutate(time_step = 1:n_tsteps)
+
+
+# Calculate expected utility over time:
+utility_sc <- data.frame(time_step = 1:n_tsteps,
+                         utility = rowSums(as.matrix(MT_sc %>%
+                                                           select(-time_step)) *
+                                                 as.matrix(markov_utils)))
+# Expected costs:
+MC_costs_sc <- data.frame(time_step = 1:n_tsteps,
+                          cost = rowSums(as.matrix(MT_sc %>%
+                                                     select(-time_step)) %*%
+                                           as.matrix(markov_costs$value)))
+
+# Now calculate ICER
+ICER <- ((dt_pc_cost + sum(MC_costs_pc)) - (dt_sc_cost + sum(MC_costs_sc))) /
+  (sum(utility_pc$utility) - sum(utility_sc$utility))
+print(paste("Estimated ICER is",
+            ICER))
+
+# Following code is for subpopulation-stratified analysis, not currently needed
+if(SUBPOP_PLOTTING){
 # Slightly hacky piece of code to add subpopulation-specific utilities. The
 # function adds the expected utility over time for a given subpopulation, then
 # we add them by cycling over the indices:
@@ -565,7 +801,7 @@ add_subpop <- function(df, i) {
   mutate(df, !!varname :=
            c((1 / rowSums(as.matrix(markov_trace[1, cols_to_select]))) *
            as.matrix(markov_trace[, cols_to_select]) %*%
-           as.vector(util_by_state$mean[cols_to_select])))
+           as.vector(util_by_state$value[cols_to_select])))
 }
 for (i in (1:length(subpop_names))){
   utility_df <- add_subpop(utility_df, i)
@@ -581,4 +817,5 @@ utility_df %>%
              y = exp_util,
              colour = subpop)) +
   geom_line() +
-  labs(title = paste("Test strategy", test))
+  labs(title = paste(test, "testing"))
+}
