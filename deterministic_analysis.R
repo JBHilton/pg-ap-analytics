@@ -712,8 +712,9 @@ dt_results_pc <- run_forward("pc") %>%
                                 "_",
                                 sep = "")))
 
-# Expected costs at DT stage:
+# Expected costs and utilities at DT stage:
 dt_pc_cost <- sum(dt_results_pc$prob * dt_results_pc$exp_cost)
+dt_pc_util <- sum(dt_results_pc$prob * dt_results_pc$exp_utility)
 
 P0_pc <- sapply(markov_states,
              FUN=function(event){
@@ -753,6 +754,7 @@ dt_results_sc <- run_forward("sc") %>%
 
 # Expected costs at DT stage:
 dt_sc_cost <- sum(dt_results_sc$prob * dt_results_sc$exp_cost)
+dt_sc_util <- sum(dt_results_sc$prob * dt_results_sc$exp_utility)
 
 P0_sc <- sapply(markov_states,
                 FUN=function(event){
@@ -783,7 +785,7 @@ MC_costs_sc <- data.frame(time_step = 1:n_tsteps,
 
 # Now calculate ICER
 ICER <- ((dt_pc_cost + sum(MC_costs_pc)) - (dt_sc_cost + sum(MC_costs_sc))) /
-  (sum(utility_pc$utility) - sum(utility_sc$utility))
+  ((dt_pc_util + sum(utility_pc$utility)) - (dt_sc_util + sum(utility_sc$utility)))
 print(paste("Estimated ICER is",
             ICER))
 
