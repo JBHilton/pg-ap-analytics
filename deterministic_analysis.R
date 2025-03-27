@@ -366,7 +366,8 @@ implement_B <- function(subpop_id){
                                        stroke_cost,
                                        death_cost,
                                        no_event_cost),
-                           utility = exp_util_bleed * c(event_utilities$value[event_utilities$variable.name == "mi"],
+                           utility = -(1 - exp_util_bleed) + # Subtract utility decrement due to bleed
+                             c(event_utilities$value[event_utilities$variable.name == "mi"],
                                        event_utilities$value[event_utilities$variable.name == "stroke"],
                                        event_utilities$value[event_utilities$variable.name == "death"],
                                        event_utilities$value[event_utilities$variable.name == "no_event"]))
