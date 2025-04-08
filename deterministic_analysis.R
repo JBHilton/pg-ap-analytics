@@ -28,8 +28,8 @@ CONVERSIONS_REQUIRED <- FALSE
 # be at some point
 SUBPOP_PLOTTING <- FALSE
 
-# Parameter for point in year when death occurs given it occurs within the
-# decision tree
+# Step correction for death in decision tree and Markov model, i.e. average time
+# to death given death occurs within a given year.
 AVE_TIME_TO_DEATH <- 0.5
 
 library("dplyr")
@@ -152,7 +152,7 @@ lof_prev <- lof_prev_eu
 # Get loading doses for drugs. Note that ac_lof and ac_no_lof are identical, but
 # for formatting purposes it's more convenient to use the same subpopulations as
 # the model.
-ld_costs <- data.frame(drug = c("ac_lof",
+ld_costs_sc <- data.frame(drug = c("ac_lof",
                                 "ac_no_lof",
                                 "at",
                                 "ap"),
@@ -160,6 +160,16 @@ ld_costs <- data.frame(drug = c("ac_lof",
                                   parameters_STEMI$value[parameters_STEMI$variable.name=="ld_clop_600"],
                                   parameters_STEMI$value[parameters_STEMI$variable.name=="ld_tica_180"],
                                   parameters_STEMI$value[parameters_STEMI$variable.name=="ld_pras_60"]))
+
+ld_costs_pc <- data.frame(drug = c("ac_lof",
+                                   "ac_no_lof",
+                                   "at",
+                                   "ap"),
+                          cost = c(parameters_STEMI$value[parameters_STEMI$variable.name=="ld_clop_600"],
+                                   parameters_STEMI$value[parameters_STEMI$variable.name=="ld_tica_180"] +
+                                     5 * parameters_STEMI$value[parameters_STEMI$variable.name=="day_cost_tica"],
+                                   parameters_STEMI$value[parameters_STEMI$variable.name=="ld_tica_180"],
+                                   parameters_STEMI$value[parameters_STEMI$variable.name=="ld_pras_60"]))
 
 # Get daily costs for drugs
 daily_costs <- data.frame(drug = c("ac_lof",
@@ -169,8 +179,8 @@ daily_costs <- data.frame(drug = c("ac_lof",
                        cost = parameters_STEMI$value[parameters_STEMI$variable.name=="day_cost_asa"] +
                          c(parameters_STEMI$value[parameters_STEMI$variable.name=="day_cost_clop"],
                                 parameters_STEMI$value[parameters_STEMI$variable.name=="day_cost_clop"],
-                                parameters_STEMI$value[parameters_STEMI$variable.name=="day_cost_clop"],
-                                parameters_STEMI$value[parameters_STEMI$variable.name=="day_cost_clop"]))
+                                parameters_STEMI$value[parameters_STEMI$variable.name=="day_cost_tica"],
+                                parameters_STEMI$value[parameters_STEMI$variable.name=="day_cost_pras"]))
 
 # Get expected durations of courses by event
 course_dur_by_event_sc <- data.frame(event = c("no_event",
@@ -192,9 +202,16 @@ course_dur_by_event_pc <- data.frame(event = c("no_event",
 
 # Now get course costs by combination of drug and event (bleeds do not affect
 # costs here)
-drug_course_costs <-  merge(daily_costs, course_dur_by_event_sc) %>% # For now just do standard care - I don't see why times should be different under PC
+drug_course_costs_sc <-  merge(daily_costs, course_dur_by_event_sc) %>% # For now just do standard care - I don't see why times should be different under PC
   mutate(drug_event = paste(drug, event, sep="_"),
          cost = cost * duration) %>%
+  select(-c(drug, event, duration))
+
+drug_course_costs_pc <-  merge(daily_costs, course_dur_by_event_sc) %>% # For now just do standard care - I don't see why times should be different under PC
+  mutate(drug_event = paste(drug, event, sep="_"),
+         cost = ifelse(drug=="ac_no_lof",
+                       cost * (duration - 5),
+                       cost * duration)) %>%
   select(-c(drug, event, duration))
 
 # Utilities associated with events:
@@ -205,9 +222,11 @@ event_utilities <- parameters_STEMI %>%
            str_replace_all("_tree", "")) %>%
   mutate(value = ifelse(grepl("or_bleed", variable.name), # The "or" here identifies the ones with "major" or "minor" in the name
                         1 - value,
-                        value)) %>%
-  add_row(variable.name = "death",
-          value = AVE_TIME_TO_DEATH) # Apply 1 before death, 0 afterwards
+                        value))
+event_utilities <- event_utilities %>%  add_row(variable.name = "death",
+          value = AVE_TIME_TO_DEATH *
+            event_utilities$value[
+              which(event_utilities$variable.name=="no_event")]) # Apply no_event utility before death, 0 afterwards
 
 # Similar formula to get costs for DT model:
 event_costs <- parameters_STEMI %>%
@@ -246,10 +265,10 @@ implement_sc <- function(true_genotype){
                                               p_ac_no_lof,
                                               p_at,
                                               p_ap),
-                           cost = c(ld_costs$cost[ld_costs$drug=="ac"],
-                                    ld_costs$cost[ld_costs$drug=="ac"],
-                                    ld_costs$cost[ld_costs$drug=="at"],
-                                    ld_costs$cost[ld_costs$drug=="ap"]),
+                           cost = c(ld_costs_sc$cost[ld_costs_sc$drug=="ac"],
+                                    ld_costs_sc$cost[ld_costs_sc$drug=="ac"],
+                                    ld_costs_sc$cost[ld_costs_sc$drug=="at"],
+                                    ld_costs_sc$cost[ld_costs_sc$drug=="ap"]),
                            utility = c(1,
                                        1,
                                        1,
@@ -292,10 +311,10 @@ implement_A <- function(true_genotype,
                       p_at,
                       p_ap,
                       1 - p_test_followed), # Go to standard care if test not followed
-             cost = c(ld_costs$cost[ld_costs$drug=="ac_lof"],
-                      ld_costs$cost[ld_costs$drug=="ac_no_lof"],
-                      ld_costs$cost[ld_costs$drug=="at"],
-                      ld_costs$cost[ld_costs$drug=="ap"],
+             cost = c(ld_costs_pc$cost[ld_costs_pc$drug=="ac_lof"],
+                      ld_costs_pc$cost[ld_costs_pc$drug=="ac_no_lof"],
+                      ld_costs_pc$cost[ld_costs_pc$drug=="at"],
+                      ld_costs_pc$cost[ld_costs_pc$drug=="ap"],
                       0),
              utility = c(1,
                          1,
@@ -305,7 +324,8 @@ implement_A <- function(true_genotype,
   return(subroutine_A_results)
 }
 
-implement_B <- function(subpop_id){
+implement_B <- function(subpop_id,
+                        test){
   subpop_pars <- parameters_STEMI[grepl(paste(subpop_id, "$", sep=""), # Gather subpopulation-specific parameters
                                         parameters_STEMI$variable.name),] %>%
     filter(!grepl("hr_", variable.name)) %>%
@@ -322,6 +342,12 @@ implement_B <- function(subpop_id){
     grep("stroke", subpop_pars$variable.name)]
   death_prob <- subpop_pars$value[
     grep("death", subpop_pars$variable.name)]
+  
+  if (test=="pc"){
+    drug_course_costs = drug_course_costs_pc
+  }else{
+    drug_course_costs = drug_course_costs_sc
+  }
   
   mi_cost <- event_costs$value[event_costs$variable.name=="mi"] +
     drug_course_costs$cost[drug_course_costs$drug_event==paste(subpop_id,
@@ -376,8 +402,13 @@ implement_B <- function(subpop_id){
 
 # Patient steps through subroutine B regardless of testing method, so we
 # calculate it here
-B_result_list <- lapply(subpop_names,
-                        implement_B)
+B_result_list_sc <- lapply(subpop_names,
+                        implement_B,
+                        "sc")
+
+B_result_list_pc <- lapply(subpop_names,
+                           implement_B,
+                           "pc")
 
 # Make a dataframe to match up names of events in B with the Markov model states
 # patients end up in afterwards. Note leading underscore "_" used in string
@@ -414,7 +445,8 @@ run_forward <- function(test = "sc"){
       (1 - lof_prev) * sc_results_no_lof$prob * sc_results_no_lof$cost
   }
   
-  # Only need results of subroutine A if we actually do testing
+  # Only need results of subroutine A if we actually do testing. Also decide
+  # here which version of B_result_list to use
   if((test == "pc") | (test == "l")){
     
     # Assign performance metrics for relevant test
@@ -466,6 +498,11 @@ run_forward <- function(test = "sc"){
       prob_sc *
     (lof_prev * sc_results_lof$prob * sc_results_lof$cost +
       (1 - lof_prev) * sc_results_no_lof$prob * sc_results_no_lof$cost)
+    
+    B_result_list <- B_result_list_pc
+  }else{
+    # If we aren't testing we use the standard care version of B results
+    B_result_list <- B_result_list_sc
   }
   
   # Now extend to combined subpopulation-health state space by implementing
@@ -588,7 +625,8 @@ markov_pars <- data.frame(parameter.list = c("mi",
 # Load utilities and add zeros for death
 markov_utils <- read_xlsx("data-inputs/masterfile_240325.xlsx",
                           sheet = "time_event_utility") %>%
-  mutate(death = 0) %>%
+  mutate(death = AVE_TIME_TO_DEATH * no_event) %>%
+  slice(-1) %>% # Remove first row since this is covered by decision tree
   select(all_of(markov_states)) # Last step just makes sure ordering matches model
 
 # Extract costs from main parameter table
@@ -599,7 +637,7 @@ markov_costs <- parameters_STEMI %>%
   mutate(variable.name = gsub("cost_", "", variable.name)) %>%
   mutate(variable.name = gsub("_markov", "", variable.name)) %>%
   add_row(variable.name = "death",
-          value = event_costs$value[event_costs$variable.name=="death"]) %>% # Assign same cost to deaths as in tree
+          value = 0) %>% # Assign 0 cost to deaths in this section of model
   arrange(factor(variable.name, levels = markov_states))
   
 
@@ -649,7 +687,7 @@ build_markov_model <- function(tstep){
 # the initial condition for the Markov model.
 
 # Choose time horizon
-n_tsteps <- 40
+n_tsteps <- 39
 
 # Choose test to analyse
 test <- "pc"
@@ -671,7 +709,7 @@ P0 <- sapply(markov_states,
 
 markov_trace <- sapply(1:n_tsteps,
                         FUN = function(t){
-                          P0 %*% (build_markov_model(t) %^% t)
+                          P0 %*% (build_markov_model(t+1) %^% t)
                           }
                         ) %>%
   t() %>%
@@ -724,7 +762,7 @@ P0_pc <- sapply(markov_states,
 
 MT_pc <- sapply(1:n_tsteps,
                        FUN = function(t){
-                         P0_pc %*% (build_markov_model(t) %^% t)
+                         P0_pc %*% (build_markov_model(t+1) %^% t)
                        }
 ) %>%
   t() %>%
