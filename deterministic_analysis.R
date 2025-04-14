@@ -801,12 +801,18 @@ MT_pc <- sapply(1:n_tsteps,
 utility_pc <- data.frame(time_step = 1:n_tsteps,
                          utility = rowSums(as.matrix(MT_pc %>%
                                                            select(-time_step)) *
-                                                 as.matrix(markov_utils)))
+                                                 as.matrix(markov_utils))) %>%
+  mutate(utility =
+           utility / (1 + parameters_STEMI$value[
+             parameters_STEMI$variable.name=="qaly_discount_rate"]))
 # Expected costs:
 MC_costs_pc <- data.frame(time_step = 1:n_tsteps,
                          cost = rowSums(as.matrix(MT_pc %>%
                                                        select(-time_step)) %*%
-                                             as.matrix(markov_costs$value)))
+                                             as.matrix(markov_costs$value))) %>%
+  mutate(cost =
+           cost / (1 + parameters_STEMI$value[
+             parameters_STEMI$variable.name=="cost_discount_rate"]))
 
 # Now do sc
 
@@ -841,12 +847,18 @@ MT_sc <- sapply(1:n_tsteps,
 utility_sc <- data.frame(time_step = 1:n_tsteps,
                          utility = rowSums(as.matrix(MT_sc %>%
                                                            select(-time_step)) *
-                                                 as.matrix(markov_utils)))
+                                                 as.matrix(markov_utils))) %>%
+  mutate(utility =
+           utility / (1 + parameters_STEMI$value[
+             parameters_STEMI$variable.name=="qaly_discount_rate"]))
 # Expected costs:
 MC_costs_sc <- data.frame(time_step = 1:n_tsteps,
                           cost = rowSums(as.matrix(MT_sc %>%
                                                      select(-time_step)) %*%
-                                           as.matrix(markov_costs$value)))
+                                           as.matrix(markov_costs$value))) %>%
+  mutate(cost =
+           cost / (1 + parameters_STEMI$value[
+             parameters_STEMI$variable.name=="cost_discount_rate"]))
 
 # Now calculate ICER
 ICER <- ((dt_pc_cost + sum(MC_costs_pc)) - (dt_sc_cost + sum(MC_costs_sc))) /
