@@ -227,6 +227,13 @@ event_utilities <- event_utilities %>%  add_row(variable.name = "death",
           value = AVE_TIME_TO_DEATH *
             event_utilities$value[
               which(event_utilities$variable.name=="no_event")]) # Apply no_event utility before death, 0 afterwards
+# Add dyspnoea utilities, converting from whole-year to 30 day values
+duration_dyspnoea <- parameters_STEMI$value[
+  which(parameters_STEMI$variable.name=="duration_dyspnoea")]
+event_utilities <- event_utilities %>%
+  add_row(variable.name = "dyspnoea",
+          value = (duration_dyspnoea / 365) * event_utilities$value[
+            which(event_utilities$variable.name=="dec_dyspnoea")])
 
 # Similar formula to get costs for DT model:
 event_costs <- parameters_STEMI %>%
@@ -336,6 +343,15 @@ implement_B <- function(subpop_id,
     grep("minor_bleed", subpop_pars$variable.name)]
   major_bleed_prob <- subpop_pars$value[
     grep("major_bleed", subpop_pars$variable.name)]
+  # For ac_no_lof, just use ac_lof value of dyspnoea probability since LOF gene does not affect this
+  if (subpop_id == "ac_no_lof"){
+    dysp_prob <- parameters_STEMI$value[which(
+      parameters_STEMI$variable.name == "prob_dyspnoea_ac_lof"
+    )]
+  }else{
+    dysp_prob <- subpop_pars$value[
+      grep("dyspnoea", subpop_pars$variable.name)]
+  }
   mi_prob <- subpop_pars$value[
     grep("mi$", subpop_pars$variable.name)]
   stroke_prob <- subpop_pars$value[
@@ -379,6 +395,15 @@ implement_B <- function(subpop_id,
                                        1))
   exp_util_bleed <- sum(bleed_results$prob * bleed_results$utility)
   
+  dysp_results <- data.frame(event = c("dysp",
+                                       "no_event"),
+                              prob = c(dysp_prob,
+                                       1 - dysp_prob),
+                              utility = c(event_utilities$value[
+                                event_utilities$variable.name=="dyspnoea"],
+                                1))
+  exp_util_dysp <- sum(dysp_results$prob * dysp_results$utility)
+  
   # Note on results: we currently assign zero cost to each of these outcomes
   subroutine_B_results <- data.frame(event = c("reinfarction",
                                      "stroke",
@@ -393,6 +418,7 @@ implement_B <- function(subpop_id,
                                        death_cost,
                                        no_event_cost),
                            utility = -(1 - exp_util_bleed) + # Subtract utility decrement due to bleed
+                             -(1 - exp_util_bleed) + # Subtract utility decrement due to dyspnoea
                              c(event_utilities$value[event_utilities$variable.name == "mi"],
                                        event_utilities$value[event_utilities$variable.name == "stroke"],
                                        event_utilities$value[event_utilities$variable.name == "death"],
@@ -827,6 +853,10 @@ ICER <- ((dt_pc_cost + sum(MC_costs_pc)) - (dt_sc_cost + sum(MC_costs_sc))) /
   ((dt_pc_util + sum(utility_pc$utility)) - (dt_sc_util + sum(utility_sc$utility)))
 print(paste("Estimated ICER is",
             ICER))
+print(paste("Estimated cost is",
+      (dt_pc_cost + sum(MC_costs_pc)) - (dt_sc_cost + sum(MC_costs_sc))))
+print(paste("Estimated utility is",
+            (dt_pc_util + sum(utility_pc$utility)) - (dt_sc_util + sum(utility_sc$utility))))
 
 # Following code is for subpopulation-stratified analysis, not currently needed
 if(SUBPOP_PLOTTING){
