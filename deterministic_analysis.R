@@ -110,9 +110,11 @@ parameters_STEMI <- read_xlsx("data-inputs/masterfile_240325.xlsx",
            str_replace_all("maj_bleed", "major_bleed")) %>%
   mutate(value = as.numeric(value)) # Convert values from characters to numbers
 
-# Convert hazard rates to probabilities:
-parameters_STEMI$value[which(parameters_STEMI$type=="hazard rate")] <-
-  1 - exp( - parameters_STEMI$value[which(parameters_STEMI$type=="hazard rate")])
+
+# Note: following appears to be unnecessary
+# # Convert hazard rates to probabilities:
+# parameters_STEMI$value[which(parameters_STEMI$type=="hazard rate")] <-
+#   1 - exp( - parameters_STEMI$value[which(parameters_STEMI$type=="hazard rate")])
 
 
 # Start ages specified on row 1 of parameter matrices:
@@ -148,6 +150,9 @@ p_ap_A <- p_ap_sc / (p_at_sc + p_ap_sc) # Proportion prescriped prasugrel during
 lof_prev_eu <- parameters_STEMI$value[parameters_STEMI$variable.name=="prevalence_lof_base_case"]
 lof_prev_as <- parameters_STEMI$value[parameters_STEMI$variable.name=="prevalence_lof_sensitivity"]
 lof_prev <- lof_prev_eu
+
+# Get cost_pci, baseline cost applied in all courses
+cost_pci <- parameters_STEMI$value[parameters_STEMI$variable.name=="cost_pci"]
 
 # Get loading doses for drugs. Note that ac_lof and ac_no_lof are identical, but
 # for formatting purposes it's more convenient to use the same subpopulations as
@@ -222,26 +227,26 @@ event_utilities <- parameters_STEMI %>%
            str_replace_all("_tree", "")) %>%
   mutate(value = ifelse(grepl("or_bleed", variable.name), # The "or" here identifies the ones with "major" or "minor" in the name
                         1 - value,
-                        value))
-event_utilities <- event_utilities %>%  add_row(variable.name = "death",
-          value = AVE_TIME_TO_DEATH *
-            event_utilities$value[
-              which(event_utilities$variable.name=="no_event")]) # Apply no_event utility before death, 0 afterwards
+                        value)) %>%
+  filter(!grepl("dec_m", variable.name)) %>%
+  add_row(variable.name = "death",
+          value = 0) # Apply no_event utility before death, 0 afterwards
 # Add dyspnoea utilities, converting from whole-year to 30 day values
 duration_dyspnoea <- parameters_STEMI$value[
   which(parameters_STEMI$variable.name=="duration_dyspnoea")]
 event_utilities <- event_utilities %>%
   add_row(variable.name = "dyspnoea",
-          value = (duration_dyspnoea / 365) * event_utilities$value[
+          value = 1 - event_utilities$value[
             which(event_utilities$variable.name=="dec_dyspnoea")])
 
 # Similar formula to get costs for DT model:
 event_costs <- parameters_STEMI %>%
   filter(grepl("cost", parameter.list)) %>%
-  filter(grepl("tree", parameter.list)) %>%
+  filter(grepl("tree|bleed|dysp", parameter.list)) %>%
   select(c(variable.name, value)) %>%
   mutate(variable.name = gsub("cost_", "", variable.name)) %>%
-  mutate(variable.name = gsub("_tree", "", variable.name))
+  mutate(variable.name = gsub("_tree", "", variable.name)) %>%
+  mutate(variable.name = gsub("_pp", "", variable.name))
 
 # Put some filler values in for utilities of bleeds
 minor_bleed_utility <- event_utilities$value[event_utilities$variable.name=="minor_bleed"]
@@ -336,6 +341,7 @@ implement_B <- function(subpop_id,
   subpop_pars <- parameters_STEMI[grepl(paste(subpop_id, "$", sep=""), # Gather subpopulation-specific parameters
                                         parameters_STEMI$variable.name),] %>%
     filter(!grepl("hr_", variable.name)) %>%
+    filter(!(variable.name == "or_dyspnoea_at")) %>% # Drop stray odds ratio that appears for Ticagrelor
     mutate(variable.name = variable.name %>% str_replace_all(paste("_", subpop_id, sep=""), ""))
   
   # Get probabilities of each event from dataframe:
@@ -388,20 +394,30 @@ implement_B <- function(subpop_id,
                            prob = c(minor_bleed_prob,
                                     major_bleed_prob,
                                     1 - minor_bleed_prob - major_bleed_prob),
+                           cost = c(event_costs$value[
+                             event_costs$variable.name=="minor_bleed"],
+                             event_costs$value[
+                               event_costs$variable.name=="major_bleed"],
+                             0),
                            utility = c(event_utilities$value[
                              event_utilities$variable.name=="minor_bleed"],
                              event_utilities$value[
                                event_utilities$variable.name=="major_bleed"],
                                        1))
+  exp_cost_bleed <- sum(bleed_results$prob * bleed_results$cost)
   exp_util_bleed <- sum(bleed_results$prob * bleed_results$utility)
   
   dysp_results <- data.frame(event = c("dysp",
                                        "no_event"),
                               prob = c(dysp_prob,
                                        1 - dysp_prob),
+                             cost = c(event_costs$value[
+                               event_costs$variable.name=="dyspnoea"],
+                               0),
                               utility = c(event_utilities$value[
                                 event_utilities$variable.name=="dyspnoea"],
                                 1))
+  exp_cost_dysp <- sum(dysp_results$prob * dysp_results$cost)
   exp_util_dysp <- sum(dysp_results$prob * dysp_results$utility)
   
   # Note on results: we currently assign zero cost to each of these outcomes
@@ -413,12 +429,16 @@ implement_B <- function(subpop_id,
                                        stroke_prob,
                                        death_prob,
                                        1 - mi_prob - stroke_prob - death_prob),
-                              cost = c(mi_cost,
+                              cost = cost_pci + exp_cost_bleed + exp_cost_dysp +
+                                c(mi_cost,
                                        stroke_cost,
                                        death_cost,
                                        no_event_cost),
                            utility = -(1 - exp_util_bleed) + # Subtract utility decrement due to bleed
-                             -(1 - exp_util_bleed) + # Subtract utility decrement due to dyspnoea
+                             -(1 - exp_util_dysp) + # Subtract utility decrement due to dyspnoea
+                             AVE_TIME_TO_DEATH * # Apply step correction; events happen part way through year
+                             event_utilities$value[event_utilities$variable.name == "no_event"] +
+                             AVE_TIME_TO_DEATH *
                              c(event_utilities$value[event_utilities$variable.name == "mi"],
                                        event_utilities$value[event_utilities$variable.name == "stroke"],
                                        event_utilities$value[event_utilities$variable.name == "death"],
@@ -520,11 +540,13 @@ run_forward <- function(test = "sc"){
       prob_sc * (lof_prev * sc_results_lof$prob + # This adds possibility of reverting to standard care
          (1 - lof_prev) * sc_results_no_lof$prob)
     patient_status$exp_cost <- patient_status$exp_cost +
+      test_uptake * parameters_STEMI$value[parameters_STEMI$variable.name=="poct_cost"] + # Account for cost of testing
       test_uptake * A_results_ave$cost[1:4] +
       prob_sc *
     (lof_prev * sc_results_lof$prob * sc_results_lof$cost +
       (1 - lof_prev) * sc_results_no_lof$prob * sc_results_no_lof$cost)
-    
+    print(test)
+    print(patient_status$exp_cost)
     B_result_list <- B_result_list_pc
   }else{
     # If we aren't testing we use the standard care version of B results
@@ -550,28 +572,31 @@ run_forward <- function(test = "sc"){
     # nonzero probability of starting the Markov chain in. For probability and
     # utility, I think we want to leave them at zero before implementing B.
     extended_patient_status$exp_cost[
-      grep(name,
+      grep(paste(name, "_",sep=""),
            extended_patient_status$subpop)] <- c_subgroup
     
     # Assign probabilities and update utilities based on subroutine B.
     # Note: this assigns utility 1 to anyone in 
     for (j in (1:nrow(post_event_match))){
+      # print(paste(name, post_event_match$state[j], sep=""))
+      # print(which(grepl(paste(name, post_event_match$state[j], sep=""),
+      #                  extended_patient_status$subpop)))
       extended_patient_status$prob[
-        grep(paste(name, post_event_match$state[j], sep=""),
+        grepl(paste(name, post_event_match$state[j], sep=""),
                                         extended_patient_status$subpop)] <-
         B_result_list[[i]]$prob[
           which(B_result_list[[i]]$event==post_event_match$event[j])] *
         p_subgroup
-      
+      # print(paste("ping", extended_patient_status$exp_cost[6]))
       extended_patient_status$exp_cost[
-        grep(paste(name, post_event_match$state[j], sep=""),
+        grepl(paste(name, post_event_match$state[j], sep=""),
              extended_patient_status$subpop)] <-
         extended_patient_status$exp_cost[
-          grep(paste(name, post_event_match$state[j], sep=""),
+          grepl(paste(name, post_event_match$state[j], sep=""),
                extended_patient_status$subpop)] +
         B_result_list[[i]]$cost[
           which(B_result_list[[i]]$event==post_event_match$event[j])]
-      
+      # print(extended_patient_status$exp_cost[6])
       extended_patient_status$exp_utility[
         grep(paste(name, post_event_match$state[j], sep=""),
              extended_patient_status$subpop)] <-
@@ -870,35 +895,61 @@ print(paste("Estimated cost is",
 print(paste("Estimated utility is",
             (dt_pc_util + sum(utility_pc$utility)) - (dt_sc_util + sum(utility_sc$utility))))
 
-# Following code is for subpopulation-stratified analysis, not currently needed
-if(SUBPOP_PLOTTING){
-# Slightly hacky piece of code to add subpopulation-specific utilities. The
-# function adds the expected utility over time for a given subpopulation, then
-# we add them by cycling over the indices:
-add_subpop <- function(df, i) {
-  cols_to_select <- grepl(subpop_names[i],
-                          colnames(markov_trace))
-  varname <- paste(subpop_names[i],
-                   "_util",
-                   sep = "")[1]
-  mutate(df, !!varname :=
-           c((1 / rowSums(as.matrix(markov_trace[1, cols_to_select]))) *
-           as.matrix(markov_trace[, cols_to_select]) %*%
-           as.vector(util_by_state$value[cols_to_select])))
+# Further exploration of decision tree results
+{
+print("Decision tree results:")
+print(paste("Expected cost under SC =",
+      dt_sc_cost))
+print(paste("Expected cost under PC =",
+      dt_pc_cost))
+print(paste("Expected utility under SC =",
+            dt_sc_util))
+print(paste("Expected utility under PC =",
+            dt_pc_util))
+print(paste("Expected cost difference =",
+            dt_pc_cost-dt_sc_cost))
+print(paste("Expected utility difference =",
+            dt_pc_util-dt_sc_util))
 }
-for (i in (1:length(subpop_names))){
-  utility_df <- add_subpop(utility_df, i)
+
+# For clarity, make decision tree states comparable with those from the Excel
+# workbook:
+
+dt_results_sc <- dt_results_sc %>%
+  filter(grepl("event|death|post", subpop))
+dt_states <- c("no_event",
+               "post_stroke",
+               "post_mi",
+               "death")
+
+# Merge ac_lof and ac_no_lof rows; there is definitely a better way to do this
+# using dplyr but I can't quite figure it out!
+for (state in dt_states){
+  ac_lof_row = dt_results_sc[dt_results_sc$subpop==paste("ac_lof_", state, sep=""), ]
+  ac_no_lof_row = dt_results_sc[dt_results_sc$subpop==paste("ac_no_lof_", state, sep=""), ]
+  ac_row <- ac_lof_row %>% mutate(subpop = paste("ac_", state, sep=""))
+  ac_row[which(is.numeric(ac_lof_row))] <- lof_prev * ac_lof_row[which(is.numeric(ac_lof_row))] + 
+    (1-lof_prev) * ac_no_lof_row[which(is.numeric(ac_lof_row))]
+  dt_results_sc <- dt_results_sc %>%
+    add_row(ac_row)
 }
 
 
-utility_df %>%
-  pivot_longer(grep("util",colnames(utility_df)),
-               names_to = "subpop",
-               values_to = "exp_util") %>%
-  mutate(subpop = gsub("_util", "", subpop)) %>%
-  ggplot(aes(x = time_step,
-             y = exp_util,
-             colour = subpop)) +
-  geom_line() +
-  labs(title = paste(test, "testing"))
+dt_results_pc <- dt_results_pc %>%
+  filter(grepl("event|death|post", subpop))
+dt_states <- c("no_event",
+               "post_stroke",
+               "post_mi",
+               "death")
+
+# Merge ac_lof and ac_no_lof rows; there is definitely a better way to do this
+# using dplyr but I can't quite figure it out!
+for (state in dt_states){
+  ac_lof_row = dt_results_pc[dt_results_pc$subpop==paste("ac_lof_", state, sep=""), ]
+  ac_no_lof_row = dt_results_pc[dt_results_pc$subpop==paste("ac_no_lof_", state, sep=""), ]
+  ac_row <- ac_lof_row %>% mutate(subpop = paste("ac_", state, sep=""))
+  ac_row[which(is.numeric(ac_lof_row))] <- lof_prev * ac_lof_row[which(is.numeric(ac_lof_row))] + 
+    (1-lof_prev) * ac_no_lof_row[which(is.numeric(ac_lof_row))]
+  dt_results_pc <- dt_results_pc %>%
+    add_row(ac_row)
 }
