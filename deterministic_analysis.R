@@ -84,18 +84,21 @@ full_names <- sapply(1:(n_subpops*n_states),
 
 #### Now build the decision tree model ####
 
-parameters_STEMI <- read_xlsx("data-inputs/masterfile_240325.xlsx",
-                              sheet = "Prameters.STEMI") %>% # Skip row 1 since this doesn't match the format of other rows
+parameters_STEMI <- read_xlsx("data-inputs/masterfile_270425.xlsx",
+                              sheet = "Parameters.STEMI") %>% # Skip row 1 since this doesn't match the format of other rows
   rename_all(make.names) %>% # Converts parameter names in valid R names
   rename_all(.funs = function(name){
     name %>%
       make.names() %>%
       str_replace("parmeter..STEMI.",
                       "parameter.list") %>%
+      str_replace("description..STEMI.",
+                  "parameter.list") %>%
       str_replace_all("\\.\\.",
                       ".")}) %>% # Converts parameter names in valid R names and corrects typos
   type.convert(as.is = TRUE) %>% # Make sure numbers are numbers, not characters
   filter(!is.na(parameter.list)) %>% # Remove empty lines
+  filter(!grepl("_sa", variable.name)) %>% # Drop sensitivity analysis values
   filter(!(parameter.list == "CE threshold")) %>% # Remove this since a single value isn't provided
   mutate(variable.name = variable.name %>%
            str_to_lower() %>% # Standardise parameter names for use with other objects
@@ -225,24 +228,36 @@ event_utilities <- parameters_STEMI %>%
   select(c(variable.name, value)) %>%
   mutate(variable.name = gsub("utility_", "", variable.name) %>%
            str_replace_all("_tree", "")) %>%
-  mutate(value = ifelse(grepl("or_bleed", variable.name), # The "or" here identifies the ones with "major" or "minor" in the name
-                        1 - value,
-                        value)) %>%
-  filter(!grepl("dec_m", variable.name)) %>%
+  filter(!grepl("_ac", variable.name)) %>% # Drop any derived drug-specific values
+  filter(!grepl("_at", variable.name)) %>%
+  filter(!grepl("_ap", variable.name)) %>%
+  filter(!grepl("annual", variable.name)) %>% # Drop any annual-scale values
   add_row(variable.name = "death",
           value = 0) # Apply no_event utility before death, 0 afterwards
-# Add dyspnoea utilities, converting from whole-year to 30 day values
+
+# Add dyspnoea utilities, converting from whole-year to 30 day values, and
+# convert bleed decrements to utilities
 duration_dyspnoea <- parameters_STEMI$value[
   which(parameters_STEMI$variable.name=="duration_dyspnoea")]
 event_utilities <- event_utilities %>%
   add_row(variable.name = "dyspnoea",
           value = 1 - event_utilities$value[
-            which(event_utilities$variable.name=="dec_dyspnoea")])
+            which(event_utilities$variable.name=="dec_dyspnoea")]) %>%
+  add_row(variable.name = "major_bleed",
+          value = 1 - event_utilities$value[
+            which(event_utilities$variable.name=="dec_major_bleed")]) %>%
+  add_row(variable.name = "minor_bleed",
+          value = 1 - event_utilities$value[
+            which(event_utilities$variable.name=="dec_minor_bleed")]) %>%
+  filter(!grepl("dec_", variable.name))
 
 # Similar formula to get costs for DT model:
 event_costs <- parameters_STEMI %>%
   filter(grepl("cost", parameter.list)) %>%
   filter(grepl("tree|bleed|dysp", parameter.list)) %>%
+  filter(!grepl("_ac", variable.name)) %>% # Drop any derived drug-specific values
+  filter(!grepl("_at", variable.name)) %>%
+  filter(!grepl("_ap", variable.name)) %>%
   select(c(variable.name, value)) %>%
   mutate(variable.name = gsub("cost_", "", variable.name)) %>%
   mutate(variable.name = gsub("_tree", "", variable.name)) %>%
@@ -267,8 +282,8 @@ implement_sc <- function(true_genotype){
   
   # If prescribed clopidogrel then subpopulation depends on genotype, otherwise
   # just used presciption proportions.
-  p_ac_lof <- ifelse(true_genotype=="no_lof", 0, p_ac_sc)
-  p_ac_no_lof <- ifelse(true_genotype=="no_lof", p_ac_sc, 0)
+  p_ac_lof <- p_ac_sc
+  p_ac_no_lof <- 0
   p_at <- p_at_sc
   p_ap <- p_ap_sc
   
@@ -341,7 +356,11 @@ implement_B <- function(subpop_id,
   subpop_pars <- parameters_STEMI[grepl(paste(subpop_id, "$", sep=""), # Gather subpopulation-specific parameters
                                         parameters_STEMI$variable.name),] %>%
     filter(!grepl("hr_", variable.name)) %>%
+    filter(!grepl("hazard_ratio_", variable.name)) %>%
     filter(!(variable.name == "or_dyspnoea_at")) %>% # Drop stray odds ratio that appears for Ticagrelor
+    filter(!grepl("utility_decrement_", variable.name)) %>% # Drop derived drug-specific utility decrements
+    filter(!grepl("u_dec_", variable.name)) %>% # Drop derived drug-specific utility decrements
+    filter(!grepl("cost_", variable.name)) %>%
     mutate(variable.name = variable.name %>% str_replace_all(paste("_", subpop_id, sep=""), ""))
   
   # Get probabilities of each event from dataframe:
@@ -928,8 +947,11 @@ for (state in dt_states){
   ac_lof_row = dt_results_sc[dt_results_sc$subpop==paste("ac_lof_", state, sep=""), ]
   ac_no_lof_row = dt_results_sc[dt_results_sc$subpop==paste("ac_no_lof_", state, sep=""), ]
   ac_row <- ac_lof_row %>% mutate(subpop = paste("ac_", state, sep=""))
-  ac_row[which(is.numeric(ac_lof_row))] <- lof_prev * ac_lof_row[which(is.numeric(ac_lof_row))] + 
-    (1-lof_prev) * ac_no_lof_row[which(is.numeric(ac_lof_row))]
+  ac_row$prob <- ac_lof_row$prob + ac_no_lof_row$prob
+  
+  #Indexing here extracts expected utility and cost:
+  ac_row[c(3,4)] <- lof_prev * ac_lof_row[c(3,4)] + 
+    (1-lof_prev) * ac_no_lof_row[c(3,4)]
   dt_results_sc <- dt_results_sc %>%
     add_row(ac_row)
 }
@@ -948,8 +970,11 @@ for (state in dt_states){
   ac_lof_row = dt_results_pc[dt_results_pc$subpop==paste("ac_lof_", state, sep=""), ]
   ac_no_lof_row = dt_results_pc[dt_results_pc$subpop==paste("ac_no_lof_", state, sep=""), ]
   ac_row <- ac_lof_row %>% mutate(subpop = paste("ac_", state, sep=""))
-  ac_row[which(is.numeric(ac_lof_row))] <- lof_prev * ac_lof_row[which(is.numeric(ac_lof_row))] + 
-    (1-lof_prev) * ac_no_lof_row[which(is.numeric(ac_lof_row))]
+  ac_row$prob <- ac_lof_row$prob + ac_no_lof_row$prob
+  
+  #Indexing here extracts expected utility and cost:
+  ac_row[c(3,4)] <- lof_prev * ac_lof_row[c(3,4)] + 
+    (1-lof_prev) * ac_no_lof_row[c(3,4)]
   dt_results_pc <- dt_results_pc %>%
     add_row(ac_row)
 }
