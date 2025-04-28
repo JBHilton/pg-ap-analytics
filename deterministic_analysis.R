@@ -30,7 +30,7 @@ SUBPOP_PLOTTING <- FALSE
 
 # Step correction for death in decision tree and Markov model, i.e. average time
 # to death given death occurs within a given year.
-AVE_TIME_TO_DEATH <- 0.5
+AVE_TIME_TO_EVENT <- 0.5
 
 library("dplyr")
 library("expm")
@@ -198,7 +198,7 @@ course_dur_by_event_sc <- data.frame(event = c("no_event",
                                      duration = c(parameters_STEMI$value[parameters_STEMI$variable.name=="md_no_event"],
                                                   parameters_STEMI$value[parameters_STEMI$variable.name=="md_mi_stroke_sc"],
                                                   parameters_STEMI$value[parameters_STEMI$variable.name=="md_mi_stroke_sc"],
-                                                  AVE_TIME_TO_DEATH * parameters_STEMI$value[parameters_STEMI$variable.name=="md_mi_stroke_sc"])) # Assume death occurs half way through course
+                                                  AVE_TIME_TO_EVENT * parameters_STEMI$value[parameters_STEMI$variable.name=="md_mi_stroke_sc"])) # Assume death occurs half way through course
 course_dur_by_event_pc <- data.frame(event = c("no_event",
                                                "stroke",
                                                "mi",
@@ -206,7 +206,7 @@ course_dur_by_event_pc <- data.frame(event = c("no_event",
                                      duration = c(parameters_STEMI$value[parameters_STEMI$variable.name=="md_no_event"],
                                                   parameters_STEMI$value[parameters_STEMI$variable.name=="md_mi_stroke_pc"],
                                                   parameters_STEMI$value[parameters_STEMI$variable.name=="md_mi_stroke_pc"],
-                                                  AVE_TIME_TO_DEATH * parameters_STEMI$value[parameters_STEMI$variable.name=="md_mi_stroke_pc"])) # Assume death occurs half way through course
+                                                  AVE_TIME_TO_EVENT * parameters_STEMI$value[parameters_STEMI$variable.name=="md_mi_stroke_pc"])) # Assume death occurs half way through course
 
 # Now get course costs by combination of drug and event (bleeds do not affect
 # costs here)
@@ -455,9 +455,9 @@ implement_B <- function(subpop_id,
                                        no_event_cost),
                            utility = -(1 - exp_util_bleed) + # Subtract utility decrement due to bleed
                              -(1 - exp_util_dysp) + # Subtract utility decrement due to dyspnoea
-                             AVE_TIME_TO_DEATH * # Apply step correction; events happen part way through year
+                             AVE_TIME_TO_EVENT * # Apply step correction; events happen part way through year
                              event_utilities$value[event_utilities$variable.name == "no_event"] +
-                             AVE_TIME_TO_DEATH *
+                             AVE_TIME_TO_EVENT *
                              c(event_utilities$value[event_utilities$variable.name == "mi"],
                                        event_utilities$value[event_utilities$variable.name == "stroke"],
                                        event_utilities$value[event_utilities$variable.name == "death"],
@@ -695,7 +695,7 @@ markov_pars <- data.frame(parameter.list = c("mi",
 # Load utilities and add zeros for death
 markov_utils <- read_xlsx("data-inputs/masterfile_240325.xlsx",
                           sheet = "time_event_utility") %>%
-  mutate(death = AVE_TIME_TO_DEATH * no_event) %>%
+  mutate(death = AVE_TIME_TO_EVENT * no_event) %>%
   slice(-1) %>% # Remove first row since this is covered by decision tree
   select(all_of(markov_states)) # Last step just makes sure ordering matches model
 
@@ -858,6 +858,10 @@ MC_costs_pc <- data.frame(time_step = 1:n_tsteps,
            cost / (1 + parameters_STEMI$value[
              parameters_STEMI$variable.name=="cost_discount_rate"]))
 
+
+# Mean life years:
+life_years_pc <- P0_pc["death"] + sum(1 - markov_trace$death)
+
 # Now do sc
 
 # Run decision tree analysis
@@ -904,15 +908,82 @@ MC_costs_sc <- data.frame(time_step = 1:n_tsteps,
            cost / (1 + parameters_STEMI$value[
              parameters_STEMI$variable.name=="cost_discount_rate"]))
 
+# Mean life years:
+life_years_sc <- P0_sc["death"] + sum(1 - markov_trace$death)
+
 # Now calculate ICER
 ICER <- ((dt_pc_cost + sum(MC_costs_pc)) - (dt_sc_cost + sum(MC_costs_sc))) /
   ((dt_pc_util + sum(utility_pc$utility)) - (dt_sc_util + sum(utility_sc$utility)))
-print(paste("Estimated ICER is",
-            ICER))
-print(paste("Estimated cost is",
-      (dt_pc_cost + sum(MC_costs_pc)) - (dt_sc_cost + sum(MC_costs_sc))))
-print(paste("Estimated utility is",
-            (dt_pc_util + sum(utility_pc$utility)) - (dt_sc_util + sum(utility_sc$utility))))
+{
+  print(paste("Mean life years under SC = ",
+              (life_years_sc)))
+  print(paste("Mean life years under PC = ",
+              (life_years_pc)))
+  print("With discounting:")
+  print(paste("Mean cost under SC = ",
+              (dt_sc_cost + sum(MC_costs_sc))))
+  print(paste("Mean cost under PC = ",
+        (dt_pc_cost + sum(MC_costs_pc))))
+  print(paste("Mean cost under SC = ",
+              (dt_sc_cost + sum(MC_costs_sc))))
+  print(paste("Mean utility under PC = ",
+              (dt_pc_util + sum(utility_pc$utility))))
+  print(paste("Mean utility under SC = ",
+              (dt_sc_util + sum(utility_sc$utility))))
+  print(paste("Estimated incremental cost is",
+        (dt_pc_cost + sum(MC_costs_pc)) - (dt_sc_cost + sum(MC_costs_sc))))
+  print(paste("Estimated incremental utility is",
+              (dt_pc_util + sum(utility_pc$utility)) -
+                (dt_sc_util + sum(utility_sc$utility))))
+  print(paste("Estimated ICER is",
+              ICER))
+  }
+
+# Do a non-discounted version for comparison
+
+# Calculate expected utility over time:
+utility_pc <- data.frame(time_step = 1:n_tsteps,
+                         utility = rowSums(as.matrix(MT_pc %>%
+                                                       select(-time_step)) *
+                                             as.matrix(markov_utils)))
+# Expected costs:
+MC_costs_pc <- data.frame(time_step = 1:n_tsteps,
+                          cost = rowSums(as.matrix(MT_pc %>%
+                                                     select(-time_step)) %*%
+                                           as.matrix(markov_costs$value)))
+
+# Calculate expected utility over time:
+utility_sc <- data.frame(time_step = 1:n_tsteps,
+                         utility = rowSums(as.matrix(MT_sc %>%
+                                                       select(-time_step)) *
+                                             as.matrix(markov_utils)))
+# Expected costs:
+MC_costs_sc <- data.frame(time_step = 1:n_tsteps,
+                          cost = rowSums(as.matrix(MT_sc %>%
+                                                     select(-time_step)) %*%
+                                           as.matrix(markov_costs$value)))
+
+# Now calculate ICER
+ICER <- ((dt_pc_cost + sum(MC_costs_pc)) - (dt_sc_cost + sum(MC_costs_sc))) /
+  ((dt_pc_util + sum(utility_pc$utility)) - (dt_sc_util + sum(utility_sc$utility)))
+{
+  print("Without discounting:")
+  print(paste("Mean cost under PC = ",
+              (dt_pc_cost + sum(MC_costs_pc))))
+  print(paste("Mean cost under SC = ",
+              (dt_sc_cost + sum(MC_costs_sc))))
+  print(paste("Mean utility under PC = ",
+              (dt_pc_util + sum(utility_pc$utility))))
+  print(paste("Mean utility under SC = ",
+              (dt_sc_util + sum(utility_sc$utility))))
+  print(paste("Estimated incremental cost is",
+              (dt_pc_cost + sum(MC_costs_pc)) - (dt_sc_cost + sum(MC_costs_sc))))
+  print(paste("Estimated incremental utility is",
+              (dt_pc_util + sum(utility_pc$utility)) -
+                (dt_sc_util + sum(utility_sc$utility))))
+  print(paste("Estimated ICER is",
+              ICER))
+  }
 
 # Further exploration of decision tree results
 {
@@ -929,13 +1000,16 @@ print(paste("Expected cost difference =",
             dt_pc_cost-dt_sc_cost))
 print(paste("Expected utility difference =",
             dt_pc_util-dt_sc_util))
+print(paste("Post-DT ICER =",
+            (dt_pc_cost-dt_sc_cost)/(dt_pc_util-dt_sc_util)))
 }
 
 # For clarity, make decision tree states comparable with those from the Excel
 # workbook:
 
 dt_results_sc <- dt_results_sc %>%
-  filter(grepl("event|death|post", subpop))
+  filter(grepl("event|death|post", subpop)) %>%
+  filter(grepl("ac_no_lof", subpop))
 dt_states <- c("no_event",
                "post_stroke",
                "post_mi",
@@ -943,38 +1017,39 @@ dt_states <- c("no_event",
 
 # Merge ac_lof and ac_no_lof rows; there is definitely a better way to do this
 # using dplyr but I can't quite figure it out!
-for (state in dt_states){
-  ac_lof_row = dt_results_sc[dt_results_sc$subpop==paste("ac_lof_", state, sep=""), ]
-  ac_no_lof_row = dt_results_sc[dt_results_sc$subpop==paste("ac_no_lof_", state, sep=""), ]
-  ac_row <- ac_lof_row %>% mutate(subpop = paste("ac_", state, sep=""))
-  ac_row$prob <- ac_lof_row$prob + ac_no_lof_row$prob
-  
-  #Indexing here extracts expected utility and cost:
-  ac_row[c(3,4)] <- lof_prev * ac_lof_row[c(3,4)] + 
-    (1-lof_prev) * ac_no_lof_row[c(3,4)]
-  dt_results_sc <- dt_results_sc %>%
-    add_row(ac_row)
-}
+# for (state in dt_states){
+#   ac_lof_row = dt_results_sc[dt_results_sc$subpop==paste("ac_lof_", state, sep=""), ]
+#   ac_no_lof_row = dt_results_sc[dt_results_sc$subpop==paste("ac_no_lof_", state, sep=""), ]
+#   ac_row <- ac_lof_row %>% mutate(subpop = paste("ac_", state, sep=""))
+#   ac_row$prob <- ac_lof_row$prob + ac_no_lof_row$prob
+#   
+#   #Indexing here extracts expected utility and cost:
+#   ac_row[c(3,4)] <- lof_prev * ac_lof_row[c(3,4)] + 
+#     (1-lof_prev) * ac_no_lof_row[c(3,4)]
+#   dt_results_sc <- dt_results_sc %>%
+#     add_row(ac_row)
+# }
 
 
 dt_results_pc <- dt_results_pc %>%
-  filter(grepl("event|death|post", subpop))
+  filter(grepl("event|death|post", subpop)) %>%
+  filter(grepl("ac_lof", subpop))
 dt_states <- c("no_event",
                "post_stroke",
                "post_mi",
                "death")
 
-# Merge ac_lof and ac_no_lof rows; there is definitely a better way to do this
-# using dplyr but I can't quite figure it out!
-for (state in dt_states){
-  ac_lof_row = dt_results_pc[dt_results_pc$subpop==paste("ac_lof_", state, sep=""), ]
-  ac_no_lof_row = dt_results_pc[dt_results_pc$subpop==paste("ac_no_lof_", state, sep=""), ]
-  ac_row <- ac_lof_row %>% mutate(subpop = paste("ac_", state, sep=""))
-  ac_row$prob <- ac_lof_row$prob + ac_no_lof_row$prob
-  
-  #Indexing here extracts expected utility and cost:
-  ac_row[c(3,4)] <- lof_prev * ac_lof_row[c(3,4)] + 
-    (1-lof_prev) * ac_no_lof_row[c(3,4)]
-  dt_results_pc <- dt_results_pc %>%
-    add_row(ac_row)
-}
+# # Merge ac_lof and ac_no_lof rows; there is definitely a better way to do this
+# # using dplyr but I can't quite figure it out!
+# for (state in dt_states){
+#   ac_lof_row = dt_results_pc[dt_results_pc$subpop==paste("ac_lof_", state, sep=""), ]
+#   ac_no_lof_row = dt_results_pc[dt_results_pc$subpop==paste("ac_no_lof_", state, sep=""), ]
+#   ac_row <- ac_lof_row %>% mutate(subpop = paste("ac_", state, sep=""))
+#   ac_row$prob <- ac_lof_row$prob + ac_no_lof_row$prob
+#   
+#   #Indexing here extracts expected utility and cost:
+#   ac_row[c(3,4)] <- lof_prev * ac_lof_row[c(3,4)] + 
+#     (1-lof_prev) * ac_no_lof_row[c(3,4)]
+#   dt_results_pc <- dt_results_pc %>%
+#     add_row(ac_row)
+# }
