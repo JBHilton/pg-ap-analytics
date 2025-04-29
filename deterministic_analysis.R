@@ -695,7 +695,7 @@ markov_pars <- data.frame(parameter.list = c("mi",
 # Load utilities and add zeros for death
 markov_utils <- read_xlsx("data-inputs/masterfile_240325.xlsx",
                           sheet = "time_event_utility") %>%
-  mutate(death = AVE_TIME_TO_EVENT * no_event) %>%
+  mutate(death = 0) %>%
   slice(-1) %>% # Remove first row since this is covered by decision tree
   select(all_of(markov_states)) # Last step just makes sure ordering matches model
 
@@ -832,7 +832,7 @@ P0_pc <- sapply(markov_states,
 
 MT_pc <- sapply(1:n_tsteps,
                        FUN = function(t){
-                         P0_pc %*% (build_markov_model(t+1) %^% t)
+                         P0_pc %*% (build_markov_model(t) %^% t)
                        }
 ) %>%
   t() %>%
@@ -860,7 +860,7 @@ MC_costs_pc <- data.frame(time_step = 1:n_tsteps,
 
 
 # Mean life years:
-life_years_pc <- P0_pc["death"] + sum(1 - markov_trace$death)
+life_years_pc <- P0_pc["death"] + sum(1 - MT_pc$death)
 
 # Now do sc
 
@@ -909,7 +909,7 @@ MC_costs_sc <- data.frame(time_step = 1:n_tsteps,
              parameters_STEMI$variable.name=="cost_discount_rate"]))
 
 # Mean life years:
-life_years_sc <- P0_sc["death"] + sum(1 - markov_trace$death)
+life_years_sc <- P0_sc["death"] + sum(1 - MT_sc$death)
 
 # Now calculate ICER
 ICER <- ((dt_pc_cost + sum(MC_costs_pc)) - (dt_sc_cost + sum(MC_costs_sc))) /
