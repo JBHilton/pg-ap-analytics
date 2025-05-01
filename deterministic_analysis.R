@@ -41,7 +41,8 @@ library("stringr")
 library("tidyverse")
 
 # Set time horizon
-time_hor <- 40
+time_hor <- 40.
+time_step <- 1.
 
 #### Start by setting up names ####
 # There are four subpopulations based on genotype and drug, and six health
@@ -112,6 +113,11 @@ parameters_STEMI <- read_xlsx("data-inputs/masterfile_270425.xlsx",
            str_replace_all("mbleed", "minor_bleed") %>%
            str_replace_all("maj_bleed", "major_bleed")) %>%
   mutate(value = as.numeric(value)) # Convert values from characters to numbers
+
+# Set up scaling for discounting by time step
+discount_by_cycle <- as.matrix((1 / (1 + parameters_STEMI$value[
+  parameters_STEMI$variable.name=="qaly_discount_rate"])^seq(
+    1.0, (time_hor - 1), by = time_step)))
 
 
 # Note: following appears to be unnecessary
@@ -846,21 +852,19 @@ utility_pc <- data.frame(time_step = 1:n_tsteps,
                          utility = rowSums(as.matrix(MT_pc %>%
                                                            select(-time_step)) *
                                                  as.matrix(markov_utils))) %>%
-  mutate(utility =
-           utility / (1 + parameters_STEMI$value[
-             parameters_STEMI$variable.name=="qaly_discount_rate"]))
+  mutate(discounted_utility =
+           utility * discount_by_cycle)
 # Expected costs:
 MC_costs_pc <- data.frame(time_step = 1:n_tsteps,
                          cost = rowSums(as.matrix(MT_pc %>%
                                                        select(-time_step)) %*%
                                              as.matrix(markov_costs$value))) %>%
-  mutate(cost =
-           cost / (1 + parameters_STEMI$value[
-             parameters_STEMI$variable.name=="cost_discount_rate"]))
+  mutate(discounted_cost =
+           cost * discount_by_cycle)
 
 
 # Mean life years:
-life_years_pc <- P0_pc["death"] + sum(1 - MT_pc$death)
+life_years_pc <- (1-P0_pc["death"]) + sum(1 - MT_pc$death)
 
 # Now do sc
 
@@ -896,88 +900,61 @@ utility_sc <- data.frame(time_step = 1:n_tsteps,
                          utility = rowSums(as.matrix(MT_sc %>%
                                                            select(-time_step)) *
                                                  as.matrix(markov_utils))) %>%
-  mutate(utility =
-           utility / (1 + parameters_STEMI$value[
-             parameters_STEMI$variable.name=="qaly_discount_rate"]))
+  mutate(discounted_utility =
+           utility * discount_by_cycle)
 # Expected costs:
 MC_costs_sc <- data.frame(time_step = 1:n_tsteps,
                           cost = rowSums(as.matrix(MT_sc %>%
                                                      select(-time_step)) %*%
                                            as.matrix(markov_costs$value))) %>%
-  mutate(cost =
-           cost / (1 + parameters_STEMI$value[
-             parameters_STEMI$variable.name=="cost_discount_rate"]))
+  mutate(discounted_cost =
+           cost * discount_by_cycle)
 
 # Mean life years:
-life_years_sc <- P0_sc["death"] + sum(1 - MT_sc$death)
+life_years_sc <- (1-P0_sc["death"]) + sum(1 - MT_sc$death)
 
 # Now calculate ICER
-ICER <- ((dt_pc_cost + sum(MC_costs_pc)) - (dt_sc_cost + sum(MC_costs_sc))) /
+ICER <- ((dt_pc_cost + sum(MC_costs_pc$cost)) - (dt_sc_cost + sum(MC_costs_sc$cost))) /
   ((dt_pc_util + sum(utility_pc$utility)) - (dt_sc_util + sum(utility_sc$utility)))
+
+
+# Now calculate ICER
+ICER_disc <- ((dt_pc_cost + sum(MC_costs_pc$discounted_cost)) - (dt_sc_cost + sum(MC_costs_sc$discounted_cost))) /
+  ((dt_pc_util + sum(utility_pc$discounted_utility)) - (dt_sc_util + sum(utility_sc$discounted_utility)))
 {
   print(paste("Mean life years under SC = ",
               (life_years_sc)))
   print(paste("Mean life years under PC = ",
               (life_years_pc)))
+  print("")
   print("With discounting:")
   print(paste("Mean cost under SC = ",
-              (dt_sc_cost + sum(MC_costs_sc))))
+              (dt_sc_cost + sum(MC_costs_sc$discounted_cost))))
   print(paste("Mean cost under PC = ",
-        (dt_pc_cost + sum(MC_costs_pc))))
-  print(paste("Mean cost under SC = ",
-              (dt_sc_cost + sum(MC_costs_sc))))
+        (dt_pc_cost + sum(MC_costs_pc$discounted_cost))))
   print(paste("Mean utility under PC = ",
-              (dt_pc_util + sum(utility_pc$utility))))
+              (dt_pc_util + sum(utility_pc$discounted_utility))))
   print(paste("Mean utility under SC = ",
-              (dt_sc_util + sum(utility_sc$utility))))
+              (dt_sc_util + sum(utility_sc$discounted_utility))))
   print(paste("Estimated incremental cost is",
-        (dt_pc_cost + sum(MC_costs_pc)) - (dt_sc_cost + sum(MC_costs_sc))))
+        (dt_pc_cost + sum(MC_costs_pc$discounted_cost)) - (dt_sc_cost + sum(MC_costs_sc$discounted_cost))))
   print(paste("Estimated incremental utility is",
-              (dt_pc_util + sum(utility_pc$utility)) -
-                (dt_sc_util + sum(utility_sc$utility))))
+              (dt_pc_util + sum(utility_pc$discounted_utility)) -
+                (dt_sc_util + sum(utility_sc$discounted_utility))))
   print(paste("Estimated ICER is",
-              ICER))
-  }
-
-# Do a non-discounted version for comparison
-
-# Calculate expected utility over time:
-utility_pc <- data.frame(time_step = 1:n_tsteps,
-                         utility = rowSums(as.matrix(MT_pc %>%
-                                                       select(-time_step)) *
-                                             as.matrix(markov_utils)))
-# Expected costs:
-MC_costs_pc <- data.frame(time_step = 1:n_tsteps,
-                          cost = rowSums(as.matrix(MT_pc %>%
-                                                     select(-time_step)) %*%
-                                           as.matrix(markov_costs$value)))
-
-# Calculate expected utility over time:
-utility_sc <- data.frame(time_step = 1:n_tsteps,
-                         utility = rowSums(as.matrix(MT_sc %>%
-                                                       select(-time_step)) *
-                                             as.matrix(markov_utils)))
-# Expected costs:
-MC_costs_sc <- data.frame(time_step = 1:n_tsteps,
-                          cost = rowSums(as.matrix(MT_sc %>%
-                                                     select(-time_step)) %*%
-                                           as.matrix(markov_costs$value)))
-
-# Now calculate ICER
-ICER <- ((dt_pc_cost + sum(MC_costs_pc)) - (dt_sc_cost + sum(MC_costs_sc))) /
-  ((dt_pc_util + sum(utility_pc$utility)) - (dt_sc_util + sum(utility_sc$utility)))
-{
+              ICER_disc))
+  print("")
   print("Without discounting:")
   print(paste("Mean cost under PC = ",
-              (dt_pc_cost + sum(MC_costs_pc))))
+              (dt_pc_cost + sum(MC_costs_pc$cost))))
   print(paste("Mean cost under SC = ",
-              (dt_sc_cost + sum(MC_costs_sc))))
+              (dt_sc_cost + sum(MC_costs_sc$cost))))
   print(paste("Mean utility under PC = ",
               (dt_pc_util + sum(utility_pc$utility))))
   print(paste("Mean utility under SC = ",
               (dt_sc_util + sum(utility_sc$utility))))
   print(paste("Estimated incremental cost is",
-              (dt_pc_cost + sum(MC_costs_pc)) - (dt_sc_cost + sum(MC_costs_sc))))
+              (dt_pc_cost + sum(MC_costs_pc$cost)) - (dt_sc_cost + sum(MC_costs_sc$cost))))
   print(paste("Estimated incremental utility is",
               (dt_pc_util + sum(utility_pc$utility)) -
                 (dt_sc_util + sum(utility_sc$utility))))
@@ -985,7 +962,32 @@ ICER <- ((dt_pc_cost + sum(MC_costs_pc)) - (dt_sc_cost + sum(MC_costs_sc))) /
               ICER))
   }
 
-# Further exploration of decision tree results
+# Create a dataframe storing outputs by case:
+arm_comparison <- data.frame(arm = c("SC", "PC", "Increment"),
+                             utility_udc = c(dt_sc_util + sum(utility_sc$utility),
+                                             dt_pc_util + sum(utility_pc$utility),
+                                             (dt_pc_util + sum(utility_pc$utility)) -
+                                               (dt_sc_util + sum(utility_sc$utility))),
+                             cost_udc = c(dt_sc_cost + sum(MC_costs_sc$cost),
+                                             dt_pc_cost + sum(MC_costs_pc$cost),
+                                             (dt_pc_cost + sum(MC_costs_pc$cost)) -
+                                               (dt_sc_cost + sum(MC_costs_sc$cost))),
+                             ratio_udc = c(NA,
+                                           NA,
+                                           ICER),
+                             utility = c(dt_sc_util + sum(utility_sc$discounted_utility),
+                                             dt_pc_util + sum(utility_pc$discounted_utility),
+                                             (dt_pc_util + sum(utility_pc$discounted_utility)) -
+                                               (dt_sc_util + sum(utility_sc$discounted_utility))),
+                             cost = c(dt_sc_cost + sum(MC_costs_sc$discounted_cost),
+                                          dt_pc_cost + sum(MC_costs_pc$discounted_cost),
+                                          (dt_pc_cost + sum(MC_costs_pc$discounted_cost)) -
+                                            (dt_sc_cost + sum(MC_costs_sc$discounted_cost))),
+                             ratio = c(NA,
+                                       NA,
+                                       ICER_disc))
+
+#### Further exploration of decision tree results ####
 {
 print("Decision tree results:")
 print(paste("Expected cost under SC =",
