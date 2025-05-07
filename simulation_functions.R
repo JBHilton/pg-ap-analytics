@@ -113,7 +113,7 @@ start_age_male <- parameters_STEMI$value[parameters_STEMI$variable.name=="start_
 
 # List parameters for decision tree
 pc_uptake <- parameters_STEMI$value[parameters_STEMI$variable.name=="prob_test_order"]
-pc_test_cost <- parameters_STEMI$value[parameters_STEMI$variable.name=="gendrive_test_price"]
+base_poct_cost <- parameters_STEMI$value[parameters_STEMI$variable.name=="poct_cost"]
 pc_sens <- 1.
 pc_spec <- 1.
 
@@ -511,7 +511,8 @@ post_event_match <- data.frame(event = c("reinfarction",
 run_forward <- function(test = "sc",
                         sc_props = c(p_ac_sc,
                                      p_at_sc,
-                                     p_ap_sc)){
+                                     p_ap_sc),
+                        poct_cost = base_poct_cost){
   patient_status <- data.frame(subpop = subpop_names,
                                prob = rep(1, length(subpop_names)),
                                exp_cost = rep(0, length(subpop_names)),
@@ -580,7 +581,7 @@ run_forward <- function(test = "sc",
       prob_sc * (lof_prev * sc_results_lof$prob + # This adds possibility of reverting to standard care
                    (1 - lof_prev) * sc_results_no_lof$prob)
     patient_status$exp_cost <- patient_status$exp_cost +
-      test_uptake * parameters_STEMI$value[parameters_STEMI$variable.name=="poct_cost"] + # Account for cost of testing
+      test_uptake * poct_cost + # Account for cost of testing
       test_uptake * A_results_ave$cost[1:4] +
       prob_sc *
       (lof_prev * sc_results_lof$prob * sc_results_lof$cost +
@@ -689,10 +690,13 @@ build_markov_model <- function(tstep){
 run_arm_comparison <- function(
     sc_props = c(p_ac_sc,
                  p_at_sc,
-                 p_ap_sc)){
+                 p_ap_sc),
+    poct_cost = base_poct_cost){
   
   # Run decision tree analysis
-  dt_results_pc <- run_forward("pc", sc_props) %>%
+  dt_results_pc <- run_forward("pc",
+                               sc_props = sc_props,
+                               poct_cost = poct_cost) %>%
     mutate(event = subpop %>%
              str_remove_all(paste(paste(subpop_names, collapse = "_|"),
                                   "_",
