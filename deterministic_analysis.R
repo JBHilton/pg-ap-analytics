@@ -32,6 +32,11 @@ SUBPOP_PLOTTING <- FALSE
 # to death given death occurs within a given year.
 AVE_TIME_TO_EVENT <- 0.5
 
+# Set to true to save the results of the arm comparison as a .csv file. The file
+# path can be set on the following line:
+SAVE_ARM_COMPARISON <- TRUE
+SAVE_FILEPATH <- ""
+
 library("dplyr")
 library("expm")
 library("ggplot2")
@@ -107,18 +112,83 @@ parameters_STEMI <- read_xlsx("data-inputs/masterfile_270425.xlsx",
            str_replace_all("-", "_") %>%
            str_replace_all("with_", "") %>%
            str_replace_all("in_", "") %>%
+           str_replace_all("hazard_ratio", "hr") %>%
            str_replace_all("standard_care", "sc") %>%
            str_replace_all("reinfarction", "mi") %>%
+           str_replace_all("tica_vs_clop", "at") %>%
+           str_replace_all("pras_vs_clop", "ap") %>%
            str_replace_all("ac$", "ac_lof") %>%
            str_replace_all("mbleed", "minor_bleed") %>%
-           str_replace_all("maj_bleed", "major_bleed")) %>%
+           str_replace_all("maj_bleed", "major_bleed") %>%
+           str_replace_all("bleeding", "bleed")) %>%
   mutate(value = as.numeric(value)) # Convert values from characters to numbers
+
+# Extract probabilities and odds/hazard ratios for each drug/genotype:
+ac_lof_probs <- parameters_STEMI %>%
+  filter(grepl("prob", variable.name)) %>%
+  filter(grepl("_ac_", variable.name)) %>%
+  filter(!grepl("no_lof", variable.name)) %>%
+  select(c(variable.name, value)) %>%
+  mutate(odds = value/(1-value))
+
+prob_from_or <- function(or, base_odds){
+  return (or * base_odds / (1 + or * base_odds))
+} %>% Vectorize()
+
+# Work out Ticagrelor probabilities
+at_probs <- parameters_STEMI %>%
+  filter(grepl("^or_", variable.name)) %>%
+  filter(grepl("_at", variable.name)) %>%
+  select(c(variable.name, value)) %>%
+  mutate(value = prob_from_or(value, ac_lof_probs$odds))
+
+# We can inspect the following to make sure the odds ratio conversion is
+# consistent with the Excel workbook:
+at_probs_load <- parameters_STEMI %>%
+  filter(grepl("prob", variable.name)) %>%
+  filter(grepl("_at", variable.name)) %>%
+  select(c(variable.name, value))
+
+# Now do Prasagruel:
+ap_probs <- parameters_STEMI %>%
+  filter(grepl("^or_", variable.name)) %>%
+  filter(grepl("_ap", variable.name)) %>%
+  select(c(variable.name, value)) %>%
+  add_row(variable.name = "or_dyspnoea_ap", value = 1) %>%
+  mutate(value = prob_from_or(value, ac_lof_probs$odds))
+
+ap_probs_load <- parameters_STEMI %>%
+  filter(grepl("prob", variable.name)) %>%
+  filter(grepl("_ap", variable.name)) %>%
+  select(c(variable.name, value))
+
+# And clopidogrel with no loss of function:
+ac_no_lof_probs <- parameters_STEMI %>%
+  filter(grepl("^hr_", variable.name)) %>%
+  filter(grepl("_ac_no_lof", variable.name)) %>%
+  select(c(variable.name, value)) %>%
+  add_row(variable.name = "prob_dyspnoea_ac_no_lof", value = 1) %>%
+  mutate(value = value * ac_lof_probs$value)
+
+ac_no_lof_probs_load <- parameters_STEMI %>%
+  filter(grepl("prob", variable.name)) %>%
+  filter(grepl("_ac_no_lof", variable.name)) %>%
+  select(c(variable.name, value))
+
+# Assemble into single probability dataframe:
+prob_df <- rbind(ac_lof_probs %>% select(-odds),
+                 ac_no_lof_probs,
+                 at_probs,
+                 ap_probs) %>%
+  mutate(variable.name = variable.name %>%
+           str_replace("_vs_ac_lof", "") %>%
+           str_replace("^or_", "prob_") %>%
+           str_replace("^hr_", "prob_"))
 
 # Set up scaling for discounting by time step
 discount_by_cycle <- as.matrix((1 / (1 + parameters_STEMI$value[
   parameters_STEMI$variable.name=="qaly_discount_rate"])^seq(
     1.0, (time_hor - 1), by = time_step)))
-
 
 # Note: following appears to be unnecessary
 # # Convert hazard rates to probabilities:
@@ -363,15 +433,19 @@ implement_A <- function(true_genotype,
 
 implement_B <- function(subpop_id,
                         test){
-  subpop_pars <- parameters_STEMI[grepl(paste(subpop_id, "$", sep=""), # Gather subpopulation-specific parameters
-                                        parameters_STEMI$variable.name),] %>%
-    filter(!grepl("hr_", variable.name)) %>%
-    filter(!grepl("hazard_ratio_", variable.name)) %>%
-    filter(!(variable.name == "or_dyspnoea_at")) %>% # Drop stray odds ratio that appears for Ticagrelor
-    filter(!grepl("utility_decrement_", variable.name)) %>% # Drop derived drug-specific utility decrements
-    filter(!grepl("u_dec_", variable.name)) %>% # Drop derived drug-specific utility decrements
-    filter(!grepl("cost_", variable.name)) %>%
-    mutate(variable.name = variable.name %>% str_replace_all(paste("_", subpop_id, sep=""), ""))
+  # subpop_pars <- parameters_STEMI[grepl(paste(subpop_id, "$", sep=""), # Gather subpopulation-specific parameters
+  #                                       parameters_STEMI$variable.name),] %>%
+  #   filter(!grepl("hr_", variable.name)) %>%
+  #   filter(!grepl("hazard_ratio_", variable.name)) %>%
+  #   filter(!(variable.name == "or_dyspnoea_at")) %>% # Drop stray odds ratio that appears for Ticagrelor
+  #   filter(!grepl("utility_decrement_", variable.name)) %>% # Drop derived drug-specific utility decrements
+  #   filter(!grepl("u_dec_", variable.name)) %>% # Drop derived drug-specific utility decrements
+  #   filter(!grepl("cost_", variable.name)) %>%
+  #   mutate(variable.name = variable.name %>% str_replace_all(paste("_", subpop_id, sep=""), ""))
+  
+  subpop_pars <- prob_df[grepl(paste(subpop_id, "$", sep=""), # Gather subpopulation-specific parameters
+                                        prob_df$variable.name),] %>%
+      mutate(variable.name = variable.name %>% str_replace_all(paste("_", subpop_id, sep=""), ""))
   
   # Get probabilities of each event from dataframe:
   minor_bleed_prob <- subpop_pars$value[
@@ -380,8 +454,8 @@ implement_B <- function(subpop_id,
     grep("major_bleed", subpop_pars$variable.name)]
   # For ac_no_lof, just use ac_lof value of dyspnoea probability since LOF gene does not affect this
   if (subpop_id == "ac_no_lof"){
-    dysp_prob <- parameters_STEMI$value[which(
-      parameters_STEMI$variable.name == "prob_dyspnoea_ac_lof"
+    dysp_prob <- prob_df$value[which(
+      prob_df$variable.name == "prob_dyspnoea_ac_lof"
     )]
   }else{
     dysp_prob <- subpop_pars$value[
@@ -990,6 +1064,13 @@ arm_comparison <- data.frame(arm = c("SC", "PC", "Increment"),
                              ratio = c(NA,
                                        NA,
                                        ICER_disc))
+
+if (SAVE_ARM_COMPARISON){
+  fwrite(arm_comparison,
+         file = paste(SAVE_FILEPATH,
+                      "arm_comparison.csv",
+                      sep = ""))
+}
 
 #### Further exploration of decision tree results ####
 {
