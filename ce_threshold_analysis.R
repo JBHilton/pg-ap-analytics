@@ -20,6 +20,7 @@ library("readxl")
 library("stringr")
 library("tidyverse")
 
+source(file = "make_parameters.R")
 source(file = "simulation_functions.R")
 
 icer_df <- data.frame(poct_cost = c(0),
