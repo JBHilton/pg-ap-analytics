@@ -227,7 +227,7 @@ run_forward <- function(test = "sc",
                         sc_props = c(p_ac_sc,
                                      p_at_sc,
                                      p_ap_sc),
-                        poct_cost = base_poct_cost){
+                        poct_cost = pc_test_cost){
   patient_status <- data.frame(subpop = subpop_names,
                                prob = rep(1, length(subpop_names)),
                                exp_cost = rep(0, length(subpop_names)),
@@ -405,7 +405,7 @@ run_arm_comparison <- function(
     sc_props = c(p_ac_sc,
                  p_at_sc,
                  p_ap_sc),
-    poct_cost = base_poct_cost){
+    poct_cost = pc_test_cost){
   
   # Run decision tree analysis
   dt_results_pc <- run_forward("pc",

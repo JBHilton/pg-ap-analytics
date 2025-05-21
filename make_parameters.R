@@ -194,7 +194,7 @@ start_age_male <- parameters_STEMI$value[parameters_STEMI$variable.name=="start_
 
 # List parameters for decision tree
 pc_uptake <- parameters_STEMI$value[parameters_STEMI$variable.name=="prob_test_order"]
-pc_test_cost <- parameters_STEMI$value[parameters_STEMI$variable.name=="gendrive_test_price"]
+pc_test_cost <- parameters_STEMI$value[parameters_STEMI$variable.name=="poct_cost"]
 pc_sens <- 1.
 pc_spec <- 1.
 
