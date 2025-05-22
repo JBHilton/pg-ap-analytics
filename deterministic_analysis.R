@@ -49,17 +49,6 @@ library("tidyverse")
 source("make_parameters.R")
 source("simulation_functions.R")
 
-# Basic patient status dataframe
-
-patient_status <- data.frame(subpop = subpop_names,
-                             prob = rep(0, length(subpop_names)),
-                             exp_cost = rep(0, length(subpop_names)),
-                             exp_utility = rep(1, length(subpop_names)))
-
-
-  
-
-
 #### ICER calculation ####
 # Now that we've defined the modelling workflow, let's calculate an ICER
 # for point of care vs standard care:
@@ -115,13 +104,6 @@ MT_pc <- sapply(Reduce("%*%", lapply(-1:(n_tsteps-1),
 utility_pc <- utils_from_markov_trace(MT_pc,
                                       markov_utils)
 # Expected costs:
-# MC_costs_pc <- data.frame(time_step = 0:n_tsteps,
-#                          cost = as.matrix(MT_pc %>%
-#                                                        select(-time_step)) %*%
-#                                              as.matrix(markov_costs$value)) %>%
-#   mutate(discounted_cost =
-#            cost * discount_by_cycle) %>%
-#   select(-1) # Remove decision tree step
 MC_costs_pc <- costs_from_markov_trace(MT_pc,
                                        markov_costs)
 
@@ -170,25 +152,11 @@ MT_sc <- sapply(Reduce("%*%", lapply(-1:(n_tsteps-1),
 
 
 # Calculate expected utility over time:
-# utility_sc <- data.frame(time_step = 0:n_tsteps,
-#                          utility = rowSums(as.matrix(MT_sc %>%
-#                                                            select(-time_step)) *
-#                                                  as.matrix(markov_utils))) %>%
-#   mutate(discounted_utility =
-#            utility * discount_by_cycle) %>%
-#   select(-1) # Remove decision tree step
 
 utility_sc <- utils_from_markov_trace(MT_sc,
                                       markov_utils)
 
 # Expected costs:
-# MC_costs_sc <- data.frame(time_step = 0:n_tsteps,
-#                           cost = as.matrix(MT_sc %>%
-#                                                      select(-time_step)) %*%
-#                                            as.matrix(markov_costs$value)) %>%
-#   mutate(discounted_cost =
-#            cost * discount_by_cycle) %>%
-#   select(-1) # Remove decision tree step
 MC_costs_sc <- costs_from_markov_trace(MT_sc,
                                        markov_costs)
 
@@ -196,13 +164,14 @@ MC_costs_sc <- costs_from_markov_trace(MT_sc,
 life_years_sc <- sum(1 - MT_sc$death)
 
 # Now calculate ICER
-ICER <- ((dt_pc_cost + sum(MC_costs_pc$undiscounted_cost)) - (dt_sc_cost + sum(MC_costs_sc$undiscounted_cost))) /
+ICER_undisc <- ((dt_pc_cost + sum(MC_costs_pc$undiscounted_cost)) - (dt_sc_cost + sum(MC_costs_sc$undiscounted_cost))) /
   ((dt_pc_util + sum(utility_pc$undiscounted_utility)) - (dt_sc_util + sum(utility_sc$undiscounted_utility)))
-
-
-# Now calculate ICER
 ICER_disc <- ((dt_pc_cost + sum(MC_costs_pc$discounted_cost)) - (dt_sc_cost + sum(MC_costs_sc$discounted_cost))) /
   ((dt_pc_util + sum(utility_pc$discounted_utility)) - (dt_sc_util + sum(utility_sc$discounted_utility)))
+ICER_undisc_hs <- ((dt_pc_cost + sum(MC_costs_pc$halfstep)) - (dt_sc_cost + sum(MC_costs_sc$halfstep))) /
+  ((dt_pc_util + sum(utility_pc$halfstep)) - (dt_sc_util + sum(utility_sc$halfstep)))
+ICER_disc_hs <- ((dt_pc_cost + sum(MC_costs_pc$discounted_halfstep)) - (dt_sc_cost + sum(MC_costs_sc$discounted_halfstep))) /
+  ((dt_pc_util + sum(utility_pc$discounted_halfstep)) - (dt_sc_util + sum(utility_sc$discounted_halfstep)))
 {
   print(paste("Mean life years under SC = ",
               (life_years_sc)))
@@ -241,7 +210,7 @@ ICER_disc <- ((dt_pc_cost + sum(MC_costs_pc$discounted_cost)) - (dt_sc_cost + su
               (dt_pc_util + sum(utility_pc$undiscounted_utility)) -
                 (dt_sc_util + sum(utility_sc$undiscounted_utility))))
   print(paste("Estimated ICER is",
-              ICER))
+              ICER_undisc))
   }
 
 # Create a dataframe storing outputs by case:
@@ -251,45 +220,45 @@ arm_comparison <- data.frame(arm = c("SC", "PC", "Increment"),
                                              (dt_pc_util + sum(utility_pc$undiscounted_utility)) -
                                                (dt_sc_util + sum(utility_sc$undiscounted_utility))),
                              cost_udc = c(dt_sc_cost + sum(MC_costs_sc$undiscounted_cost),
-                                             dt_pc_cost + sum(MC_costs_pc$undiscounted_cost),
-                                             (dt_pc_cost + sum(MC_costs_pc$undiscounted_cost)) -
-                                               (dt_sc_cost + sum(MC_costs_sc$undiscounted_cost))),
-                             ratio_udc = c(NA,
-                                           NA,
-                                           ICER),
-                             utility_dc = c(dt_sc_util + sum(utility_sc$discounted_utility),
-                                             dt_pc_util + sum(utility_pc$discounted_utility),
-                                             (dt_pc_util + sum(utility_pc$discounted_utility)) -
-                                               (dt_sc_util + sum(utility_sc$discounted_utility))),
-                             cost_dc = c(dt_sc_cost + sum(MC_costs_sc$discounted_cost),
-                                          dt_pc_cost + sum(MC_costs_pc$discounted_cost),
-                                          (dt_pc_cost + sum(MC_costs_pc$discounted_cost)) -
-                                            (dt_sc_cost + sum(MC_costs_sc$discounted_cost))),
-                             ratio_dc = c(NA,
-                                       NA,
-                                       ICER_disc),
-                             utility_udc_hs = c(dt_sc_util + sum(utility_sc$halfstep),
-                                             dt_pc_util + sum(utility_pc$halfstep),
-                                             (dt_pc_util + sum(utility_pc$halfstep)) -
-                                               (dt_sc_util + sum(utility_sc$halfstep))),
-                             cost_udc_hs = c(dt_sc_cost + sum(MC_costs_sc$undiscounted_cost),
                                           dt_pc_cost + sum(MC_costs_pc$undiscounted_cost),
                                           (dt_pc_cost + sum(MC_costs_pc$undiscounted_cost)) -
                                             (dt_sc_cost + sum(MC_costs_sc$undiscounted_cost))),
-                             ratio_udc_hs = c(NA,
+                             ratio_udc = c(NA,
                                            NA,
-                                           ICER),
-                             utility_dc_hs = c(dt_sc_util + sum(utility_sc$discounted_halfstep),
-                                            dt_pc_util + sum(utility_pc$discounted_halfstep),
-                                            (dt_pc_util + sum(utility_pc$discounted_halfstep)) -
-                                              (dt_sc_util + sum(utility_sc$discounted_halfstep))),
-                             cost_dc_hs = c(dt_sc_cost + sum(MC_costs_sc$discounted_halfstep),
-                                         dt_pc_cost + sum(MC_costs_pc$discounted_halfstep),
-                                         (dt_pc_cost + sum(MC_costs_pc$discounted_halfstep)) -
-                                           (dt_sc_cost + sum(MC_costs_sc$discounted_halfstep))),
-                             ratio_dc_hs = c(NA,
+                                           ICER_undisc),
+                             utility_dc = c(dt_sc_util + sum(utility_sc$discounted_utility),
+                                            dt_pc_util + sum(utility_pc$discounted_utility),
+                                            (dt_pc_util + sum(utility_pc$discounted_utility)) -
+                                              (dt_sc_util + sum(utility_sc$discounted_utility))),
+                             cost_dc = c(dt_sc_cost + sum(MC_costs_sc$discounted_cost),
+                                         dt_pc_cost + sum(MC_costs_pc$discounted_cost),
+                                         (dt_pc_cost + sum(MC_costs_pc$discounted_cost)) -
+                                           (dt_sc_cost + sum(MC_costs_sc$discounted_cost))),
+                             ratio_dc = c(NA,
                                           NA,
-                                          ICER_disc))
+                                          ICER_disc),
+                             utility_udc_hs = c(dt_sc_util + sum(utility_sc$halfstep),
+                                                dt_pc_util + sum(utility_pc$halfstep),
+                                                (dt_pc_util + sum(utility_pc$halfstep)) -
+                                                  (dt_sc_util + sum(utility_sc$halfstep))),
+                             cost_udc_hs = c(dt_sc_cost + sum(MC_costs_sc$halfstep),
+                                             dt_pc_cost + sum(MC_costs_pc$halfstep),
+                                             (dt_pc_cost + sum(MC_costs_pc$halfstep)) -
+                                               (dt_sc_cost + sum(MC_costs_sc$halfstep))),
+                             ratio_udc_hs = c(NA,
+                                              NA,
+                                              ICER_undisc_hs),
+                             utility_dc_hs = c(dt_sc_util + sum(utility_sc$discounted_halfstep),
+                                               dt_pc_util + sum(utility_pc$discounted_halfstep),
+                                               (dt_pc_util + sum(utility_pc$discounted_halfstep)) -
+                                                 (dt_sc_util + sum(utility_sc$discounted_halfstep))),
+                             cost_dc_hs = c(dt_sc_cost + sum(MC_costs_sc$discounted_halfstep),
+                                            dt_pc_cost + sum(MC_costs_pc$discounted_halfstep),
+                                            (dt_pc_cost + sum(MC_costs_pc$discounted_halfstep)) -
+                                              (dt_sc_cost + sum(MC_costs_sc$discounted_halfstep))),
+                             ratio_dc_hs = c(NA,
+                                             NA,
+                                             ICER_disc_hs))
 
 if (SAVE_ARM_COMPARISON){
   fwrite(arm_comparison,
