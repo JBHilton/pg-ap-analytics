@@ -401,6 +401,98 @@ build_markov_model <- function(tstep){
   return(transition_matrix)
 }
 
+utils_from_markov_trace <- function(MT,
+                                    value_by_state){
+  MT_utils <- MT[-1,] %>%
+    mutate(no_event =
+             no_event * value_by_state$no_event ) %>%
+    mutate(stroke =
+             stroke * value_by_state$stroke ) %>%
+    mutate(post_stroke =
+             post_stroke * value_by_state$post_stroke ) %>%
+    mutate(mi =
+             mi * value_by_state$mi ) %>%
+    mutate(post_mi =
+             post_mi * value_by_state$post_mi ) %>%
+    mutate(death =
+             death * value_by_state$death ) %>%
+    mutate(undiscounted_utility = no_event +
+             stroke +
+             post_stroke +
+             mi +
+             post_mi +
+             death) %>%
+    mutate(discounted_utility = undiscounted_utility * discount_by_cycle) %>%
+    mutate(no_event =
+             no_event * discount_by_cycle ) %>%
+    mutate(stroke =
+             stroke * discount_by_cycle ) %>%
+    mutate(post_stroke =
+             post_stroke * discount_by_cycle ) %>%
+    mutate(mi =
+             mi * discount_by_cycle ) %>%
+    mutate(post_mi =
+             post_mi * discount_by_cycle ) %>%
+    mutate(death =
+             death * discount_by_cycle )
+  MT_utils$halfstep <- c(0.5 * (MT_utils$undiscounted_utility[1:38] +
+                                  MT_utils$undiscounted_utility[2:39]),
+                         0)
+  MT_utils$discounted_halfstep <- c(0.5 * (MT_utils$discounted_utility[1:38] +
+                                             MT_utils$discounted_utility[2:39]),
+                                    0)
+  return(MT_utils)
+}
+
+costs_from_markov_trace <- function(MT,
+                                    value_by_state){
+  MT_costs <- MT[-1,] %>%
+    mutate(no_event =
+             no_event * value_by_state$value[
+               value_by_state$variable.name=="no_event"] ) %>%
+    mutate(stroke =
+             stroke * value_by_state$value[
+               value_by_state$variable.name=="stroke"] ) %>%
+    mutate(post_stroke =
+             post_stroke * value_by_state$value[
+               value_by_state$variable.name=="post_stroke"] ) %>%
+    mutate(mi =
+             mi * value_by_state$value[
+               value_by_state$variable.name=="mi"] ) %>%
+    mutate(post_mi =
+             post_mi * value_by_state$value[
+               value_by_state$variable.name=="post_mi"] ) %>%
+    mutate(death =
+             death * value_by_state$value[
+               value_by_state$variable.name=="death"] ) %>%
+    mutate(undiscounted_cost = no_event +
+             stroke +
+             post_stroke +
+             mi +
+             post_mi +
+             death) %>%
+    mutate(discounted_cost = undiscounted_cost * discount_by_cycle) %>%
+    mutate(no_event =
+             no_event * discount_by_cycle ) %>%
+    mutate(stroke =
+             stroke * discount_by_cycle ) %>%
+    mutate(post_stroke =
+             post_stroke * discount_by_cycle ) %>%
+    mutate(mi =
+             mi * discount_by_cycle ) %>%
+    mutate(post_mi =
+             post_mi * discount_by_cycle ) %>%
+    mutate(death =
+             death * discount_by_cycle )
+  MT_costs$halfstep <- c(0.5 * (MT_costs$undiscounted_cost[1:38] +
+                                  MT_costs$undiscounted_cost[2:39]),
+                         0)
+  MT_costs$discounted_halfstep <- c(0.5 * (MT_costs$discounted_cost[1:38] +
+                                             MT_costs$discounted_cost[2:39]),
+                                    0)
+  return(MT_costs)
+}
+
 run_arm_comparison <- function(
     sc_props = c(p_ac_sc,
                  p_at_sc,

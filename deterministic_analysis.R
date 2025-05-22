@@ -89,46 +89,45 @@ markov_update <- function(p, t){
   print(p)
   return(p)
 }
-MT_pc <- sapply(Reduce("%*%", lapply(1:n_tsteps,
-                              build_markov_model), accumulate = TRUE),
+MT_pc <- sapply(Reduce("%*%", lapply(-1:(n_tsteps-1),
+                                     FUN = function(t){
+                                       if (t==-1){
+                                         return(diag(nrow = n_states))
+                                       }else{
+                                         if (t==0){
+                                           return(build_markov_model(1))
+                                         }else{
+                                           return(build_markov_model(t))
+                                         }
+                                       }
+                                     }), accumulate = TRUE),
                 FUN = function(A){
                   P0_pc %*% A
                 }
-                ) %>%
-  t() %>%
-  as.data.frame() %>%
-  `colnames<-`(markov_states) %>%
-  mutate(time_step = 1:n_tsteps)
-
-MT_pc_alt <- sapply(1:n_tsteps,
-                       FUN = function(t){
-                         P0_pc %*% (build_markov_model(t) %^% t)
-                       }
 ) %>%
   t() %>%
   as.data.frame() %>%
   `colnames<-`(markov_states) %>%
-  mutate(time_step = 1:n_tsteps)
+  mutate(time_step = 0:n_tsteps)
 
 
 # Calculate expected utility over time:
-utility_pc <- data.frame(time_step = 1:n_tsteps,
-                         utility = rowSums(as.matrix(MT_pc %>%
-                                                           select(-time_step)) *
-                                                 as.matrix(markov_utils))) %>%
-  mutate(discounted_utility =
-           utility * discount_by_cycle)
+utility_pc <- utils_from_markov_trace(MT_pc,
+                                      markov_utils)
 # Expected costs:
-MC_costs_pc <- data.frame(time_step = 1:n_tsteps,
-                         cost = rowSums(as.matrix(MT_pc %>%
-                                                       select(-time_step)) %*%
-                                             as.matrix(markov_costs$value))) %>%
-  mutate(discounted_cost =
-           cost * discount_by_cycle)
+# MC_costs_pc <- data.frame(time_step = 0:n_tsteps,
+#                          cost = as.matrix(MT_pc %>%
+#                                                        select(-time_step)) %*%
+#                                              as.matrix(markov_costs$value)) %>%
+#   mutate(discounted_cost =
+#            cost * discount_by_cycle) %>%
+#   select(-1) # Remove decision tree step
+MC_costs_pc <- costs_from_markov_trace(MT_pc,
+                                       markov_costs)
 
 
 # Mean life years:
-life_years_pc <- (1-P0_pc["death"]) + sum(1 - MT_pc$death)
+life_years_pc <- sum(1 - MT_pc$death)
 
 # Now do sc
 
@@ -148,8 +147,18 @@ P0_sc <- sapply(markov_states,
                   sum(dt_results_sc$prob[dt_results_sc$event == event])}
 )
 
-MT_sc <- sapply(Reduce("%*%", lapply(1:n_tsteps,
-                                     build_markov_model), accumulate = TRUE),
+MT_sc <- sapply(Reduce("%*%", lapply(-1:(n_tsteps-1),
+                                     FUN = function(t){
+                                       if (t==-1){
+                                         return(diag(nrow = n_states))
+                                       }else{
+                                         if (t==0){
+                                           return(build_markov_model(1))
+                                         }else{
+                                           return(build_markov_model(t))
+                                         }
+                                       }
+                                       }), accumulate = TRUE),
                 FUN = function(A){
                   P0_sc %*% A
                 }
@@ -157,40 +166,38 @@ MT_sc <- sapply(Reduce("%*%", lapply(1:n_tsteps,
   t() %>%
   as.data.frame() %>%
   `colnames<-`(markov_states) %>%
-  mutate(time_step = 1:n_tsteps)
-
-MT_sc_alt <- sapply(1:n_tsteps,
-                FUN = function(t){
-                  P0_sc %*% (build_markov_model(t) %^% t)
-                }
-) %>%
-  t() %>%
-  as.data.frame() %>%
-  `colnames<-`(markov_states) %>%
-  mutate(time_step = 1:n_tsteps)
+  mutate(time_step = 0:n_tsteps)
 
 
 # Calculate expected utility over time:
-utility_sc <- data.frame(time_step = 1:n_tsteps,
-                         utility = rowSums(as.matrix(MT_sc %>%
-                                                           select(-time_step)) *
-                                                 as.matrix(markov_utils))) %>%
-  mutate(discounted_utility =
-           utility * discount_by_cycle)
+# utility_sc <- data.frame(time_step = 0:n_tsteps,
+#                          utility = rowSums(as.matrix(MT_sc %>%
+#                                                            select(-time_step)) *
+#                                                  as.matrix(markov_utils))) %>%
+#   mutate(discounted_utility =
+#            utility * discount_by_cycle) %>%
+#   select(-1) # Remove decision tree step
+
+utility_sc <- utils_from_markov_trace(MT_sc,
+                                      markov_utils)
+
 # Expected costs:
-MC_costs_sc <- data.frame(time_step = 1:n_tsteps,
-                          cost = rowSums(as.matrix(MT_sc %>%
-                                                     select(-time_step)) %*%
-                                           as.matrix(markov_costs$value))) %>%
-  mutate(discounted_cost =
-           cost * discount_by_cycle)
+# MC_costs_sc <- data.frame(time_step = 0:n_tsteps,
+#                           cost = as.matrix(MT_sc %>%
+#                                                      select(-time_step)) %*%
+#                                            as.matrix(markov_costs$value)) %>%
+#   mutate(discounted_cost =
+#            cost * discount_by_cycle) %>%
+#   select(-1) # Remove decision tree step
+MC_costs_sc <- costs_from_markov_trace(MT_sc,
+                                       markov_costs)
 
 # Mean life years:
-life_years_sc <- (1-P0_sc["death"]) + sum(1 - MT_sc$death)
+life_years_sc <- sum(1 - MT_sc$death)
 
 # Now calculate ICER
-ICER <- ((dt_pc_cost + sum(MC_costs_pc$cost)) - (dt_sc_cost + sum(MC_costs_sc$cost))) /
-  ((dt_pc_util + sum(utility_pc$utility)) - (dt_sc_util + sum(utility_sc$utility)))
+ICER <- ((dt_pc_cost + sum(MC_costs_pc$undiscounted_cost)) - (dt_sc_cost + sum(MC_costs_sc$undiscounted_cost))) /
+  ((dt_pc_util + sum(utility_pc$undiscounted_utility)) - (dt_sc_util + sum(utility_sc$undiscounted_utility)))
 
 
 # Now calculate ICER
@@ -203,10 +210,10 @@ ICER_disc <- ((dt_pc_cost + sum(MC_costs_pc$discounted_cost)) - (dt_sc_cost + su
               (life_years_pc)))
   print("")
   print("With discounting:")
-  print(paste("Mean cost under SC = ",
-              (dt_sc_cost + sum(MC_costs_sc$discounted_cost))))
   print(paste("Mean cost under PC = ",
         (dt_pc_cost + sum(MC_costs_pc$discounted_cost))))
+  print(paste("Mean cost under SC = ",
+              (dt_sc_cost + sum(MC_costs_sc$discounted_cost))))
   print(paste("Mean utility under PC = ",
               (dt_pc_util + sum(utility_pc$discounted_utility))))
   print(paste("Mean utility under SC = ",
@@ -221,46 +228,68 @@ ICER_disc <- ((dt_pc_cost + sum(MC_costs_pc$discounted_cost)) - (dt_sc_cost + su
   print("")
   print("Without discounting:")
   print(paste("Mean cost under PC = ",
-              (dt_pc_cost + sum(MC_costs_pc$cost))))
+              (dt_pc_cost + sum(MC_costs_pc$undiscounted_cost))))
   print(paste("Mean cost under SC = ",
-              (dt_sc_cost + sum(MC_costs_sc$cost))))
+              (dt_sc_cost + sum(MC_costs_sc$undiscounted_cost))))
   print(paste("Mean utility under PC = ",
-              (dt_pc_util + sum(utility_pc$utility))))
+              (dt_pc_util + sum(utility_pc$undiscounted_utility))))
   print(paste("Mean utility under SC = ",
-              (dt_sc_util + sum(utility_sc$utility))))
+              (dt_sc_util + sum(utility_sc$undiscounted_utility))))
   print(paste("Estimated incremental cost is",
-              (dt_pc_cost + sum(MC_costs_pc$cost)) - (dt_sc_cost + sum(MC_costs_sc$cost))))
+              (dt_pc_cost + sum(MC_costs_pc$undiscounted_cost)) - (dt_sc_cost + sum(MC_costs_sc$undiscounted_cost))))
   print(paste("Estimated incremental utility is",
-              (dt_pc_util + sum(utility_pc$utility)) -
-                (dt_sc_util + sum(utility_sc$utility))))
+              (dt_pc_util + sum(utility_pc$undiscounted_utility)) -
+                (dt_sc_util + sum(utility_sc$undiscounted_utility))))
   print(paste("Estimated ICER is",
               ICER))
   }
 
 # Create a dataframe storing outputs by case:
 arm_comparison <- data.frame(arm = c("SC", "PC", "Increment"),
-                             utility_udc = c(dt_sc_util + sum(utility_sc$utility),
-                                             dt_pc_util + sum(utility_pc$utility),
-                                             (dt_pc_util + sum(utility_pc$utility)) -
-                                               (dt_sc_util + sum(utility_sc$utility))),
-                             cost_udc = c(dt_sc_cost + sum(MC_costs_sc$cost),
-                                             dt_pc_cost + sum(MC_costs_pc$cost),
-                                             (dt_pc_cost + sum(MC_costs_pc$cost)) -
-                                               (dt_sc_cost + sum(MC_costs_sc$cost))),
+                             utility_udc = c(dt_sc_util + sum(utility_sc$undiscounted_utility),
+                                             dt_pc_util + sum(utility_pc$undiscounted_utility),
+                                             (dt_pc_util + sum(utility_pc$undiscounted_utility)) -
+                                               (dt_sc_util + sum(utility_sc$undiscounted_utility))),
+                             cost_udc = c(dt_sc_cost + sum(MC_costs_sc$undiscounted_cost),
+                                             dt_pc_cost + sum(MC_costs_pc$undiscounted_cost),
+                                             (dt_pc_cost + sum(MC_costs_pc$undiscounted_cost)) -
+                                               (dt_sc_cost + sum(MC_costs_sc$undiscounted_cost))),
                              ratio_udc = c(NA,
                                            NA,
                                            ICER),
-                             utility = c(dt_sc_util + sum(utility_sc$discounted_utility),
+                             utility_dc = c(dt_sc_util + sum(utility_sc$discounted_utility),
                                              dt_pc_util + sum(utility_pc$discounted_utility),
                                              (dt_pc_util + sum(utility_pc$discounted_utility)) -
                                                (dt_sc_util + sum(utility_sc$discounted_utility))),
-                             cost = c(dt_sc_cost + sum(MC_costs_sc$discounted_cost),
+                             cost_dc = c(dt_sc_cost + sum(MC_costs_sc$discounted_cost),
                                           dt_pc_cost + sum(MC_costs_pc$discounted_cost),
                                           (dt_pc_cost + sum(MC_costs_pc$discounted_cost)) -
                                             (dt_sc_cost + sum(MC_costs_sc$discounted_cost))),
-                             ratio = c(NA,
+                             ratio_dc = c(NA,
                                        NA,
-                                       ICER_disc))
+                                       ICER_disc),
+                             utility_udc_hs = c(dt_sc_util + sum(utility_sc$halfstep),
+                                             dt_pc_util + sum(utility_pc$halfstep),
+                                             (dt_pc_util + sum(utility_pc$halfstep)) -
+                                               (dt_sc_util + sum(utility_sc$halfstep))),
+                             cost_udc_hs = c(dt_sc_cost + sum(MC_costs_sc$undiscounted_cost),
+                                          dt_pc_cost + sum(MC_costs_pc$undiscounted_cost),
+                                          (dt_pc_cost + sum(MC_costs_pc$undiscounted_cost)) -
+                                            (dt_sc_cost + sum(MC_costs_sc$undiscounted_cost))),
+                             ratio_udc_hs = c(NA,
+                                           NA,
+                                           ICER),
+                             utility_dc_hs = c(dt_sc_util + sum(utility_sc$discounted_halfstep),
+                                            dt_pc_util + sum(utility_pc$discounted_halfstep),
+                                            (dt_pc_util + sum(utility_pc$discounted_halfstep)) -
+                                              (dt_sc_util + sum(utility_sc$discounted_halfstep))),
+                             cost_dc_hs = c(dt_sc_cost + sum(MC_costs_sc$discounted_halfstep),
+                                         dt_pc_cost + sum(MC_costs_pc$discounted_halfstep),
+                                         (dt_pc_cost + sum(MC_costs_pc$discounted_halfstep)) -
+                                           (dt_sc_cost + sum(MC_costs_sc$discounted_halfstep))),
+                             ratio_dc_hs = c(NA,
+                                          NA,
+                                          ICER_disc))
 
 if (SAVE_ARM_COMPARISON){
   fwrite(arm_comparison,

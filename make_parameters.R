@@ -178,9 +178,9 @@ prob_df <- rbind(ac_lof_probs %>% select(-odds),
            str_replace("^hr_", "prob_"))
 
 # Set up scaling for discounting by time step
-discount_by_cycle <- as.matrix((1 / (1 + parameters_STEMI$value[
+discount_by_cycle <- (1 / (1 + parameters_STEMI$value[
   parameters_STEMI$variable.name=="qaly_discount_rate"])^seq(
-    1.0, (time_hor - 1), by = time_step)))
+    1.0, time_hor-1, by = time_step))
 
 # Note: following appears to be unnecessary
 # # Convert hazard rates to probabilities:
@@ -338,7 +338,6 @@ event_costs <- parameters_STEMI %>%
   mutate(variable.name = gsub("_pp", "", variable.name))
 
 ### Parameters for Markov cohort model ####
-
 # Read in age/health state-dependent mortality rates:
 mortality_prob_by_age <- read_xlsx("data-inputs/masterfile_240325.xlsx",
                                    sheet = "time_event_mortality")
@@ -353,8 +352,8 @@ markov_pars <- data.frame(parameter.list = c("mi",
 markov_utils <- read_xlsx("data-inputs/masterfile_240325.xlsx",
                           sheet = "time_event_utility") %>%
   mutate(death = 0) %>%
-  slice(-1) %>% # Remove first row since this is covered by decision tree
   select(all_of(markov_states)) # Last step just makes sure ordering matches model
+markov_utils <- markov_utils[1:39, ] # Don't end up using last entry
 
 # Extract costs from main parameter table
 markov_costs <- parameters_STEMI %>%
