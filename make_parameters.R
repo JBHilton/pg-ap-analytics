@@ -25,6 +25,59 @@ library("tidyverse")
 time_hor <- 40.
 time_step <- 1.
 
+#### Functions for calculating model probabilities ####
+
+# Function for calculating probabilities from odds ratios and baseline odds
+prob_from_or <- function(or, base_odds){
+  return (or * base_odds / (1 + or * base_odds))
+} %>% Vectorize()
+
+# Function for building a new probability dataframe based on updates to baseline
+# risks or odds/hazard ratios. A set of baseline risks needs to be provided
+rescale_probs <- function(baseline_prob_df,
+                          at_ratio_df,
+                          ap_ratio_df,
+                          ac_no_lof_ratio_df
+){
+  # Extract probabilities and odds/hazard ratios for each drug/genotype:
+  ac_lof_probs <- baseline_prob_df
+  
+  # Work out Ticagrelor probabilities
+  at_probs <- at_ratio_df %>%
+    mutate(value = prob_from_or(value, baseline_prob_df$odds))
+  
+  # Now do Prasagruel:
+  ap_probs <- ap_ratio_df %>%
+    mutate(value = prob_from_or(value, baseline_prob_df$odds))
+  
+  # And clopidogrel with no loss of function:
+  
+  if (UNIQUE_NO_LOF_PROBS){
+    ac_no_lof_probs <- ac_no_lof_ratio_df %>%
+      mutate(value = value * baseline_prob_df$value)
+  }else{
+    ac_no_lof_probs <- ac_no_lof_ratio_df %>%
+      mutate(value = value * baseline_prob_df$value) %>%
+      add_column(at_value = at_probs$value) %>%
+      mutate(value = ifelse(grepl("death", variable.name)|grepl("_mi_", variable.name),
+                            yes = at_value,
+                            no = value)) %>%
+      select(c(variable.name, value))
+  }
+  
+  # Assemble into single probability dataframe:
+  prob_df <- rbind(ac_lof_probs %>% select(-odds),
+                   ac_no_lof_probs,
+                   at_probs,
+                   ap_probs) %>%
+    mutate(variable.name = variable.name %>%
+             str_replace("_vs_ac_lof", "") %>%
+             str_replace("^or_", "prob_") %>%
+             str_replace("^hr_", "prob_"))
+  return(prob_df)
+}
+
+
 #### Start by setting up names ####
 # There are four subpopulations based on genotype and drug, and six health
 # states in the Markov cohort model.
@@ -100,82 +153,46 @@ parameters_STEMI <- read_xlsx("data-inputs/masterfile_270425.xlsx",
   mutate(value = as.numeric(value)) # Convert values from characters to numbers
 
 # Extract probabilities and odds/hazard ratios for each drug/genotype:
-ac_lof_probs <- parameters_STEMI %>%
+baseline_prob_df <- parameters_STEMI %>%
   filter(grepl("prob", variable.name)) %>%
   filter(grepl("_ac_", variable.name)) %>%
   filter(!grepl("no_lof", variable.name)) %>%
   select(c(variable.name, value)) %>%
   mutate(odds = value/(1-value))
 
-prob_from_or <- function(or, base_odds){
-  return (or * base_odds / (1 + or * base_odds))
-} %>% Vectorize()
-
 # Work out Ticagrelor probabilities
-at_probs <- parameters_STEMI %>%
+at_ratio_df <- parameters_STEMI %>%
   filter(grepl("^or_", variable.name)) %>%
-  filter(grepl("_at", variable.name)) %>%
-  select(c(variable.name, value)) %>%
-  mutate(value = prob_from_or(value, ac_lof_probs$odds))
-# mutate(value = ifelse(grepl("stroke", variable.name),
-#                     yes = ac_lof_probs$value[ac_lof_probs$variable.name=="prob_stroke_ac_lof"],
-#                     no = value))
-
-# We can inspect the following to make sure the odds ratio conversion is
-# consistent with the Excel workbook:
-at_probs_load <- parameters_STEMI %>%
-  filter(grepl("prob", variable.name)) %>%
   filter(grepl("_at", variable.name)) %>%
   select(c(variable.name, value))
 
 # Now do Prasagruel:
-ap_probs <- parameters_STEMI %>%
+ap_ratio_df <- parameters_STEMI %>%
   filter(grepl("^or_", variable.name)) %>%
   filter(grepl("_ap", variable.name)) %>%
   select(c(variable.name, value)) %>%
-  add_row(variable.name = "or_dyspnoea_ap", value = 1) %>%
-  mutate(value = prob_from_or(value, ac_lof_probs$odds))
-
-ap_probs_load <- parameters_STEMI %>%
-  filter(grepl("prob", variable.name)) %>%
-  filter(grepl("_ap", variable.name)) %>%
-  select(c(variable.name, value))
+  add_row(variable.name = "or_dyspnoea_ap", value = 1)
 
 # And clopidogrel with no loss of function:
 
 if (UNIQUE_NO_LOF_PROBS){
-  ac_no_lof_probs <- parameters_STEMI %>%
+  ac_no_lof_ratio_df <- parameters_STEMI %>%
     filter(grepl("^hr_", variable.name)) %>%
     filter(grepl("_ac_no_lof", variable.name)) %>%
     select(c(variable.name, value)) %>%
-    add_row(variable.name = "prob_dyspnoea_ac_no_lof", value = 1) %>%
-    mutate(value = value * ac_lof_probs$value)
+    add_row(variable.name = "prob_dyspnoea_ac_no_lof", value = 1)
 }else{
-  ac_no_lof_probs <- parameters_STEMI %>%
+  ac_no_lof_ratio_df <- parameters_STEMI %>%
     filter(grepl("^hr_", variable.name)) %>%
     filter(grepl("_ac_no_lof", variable.name)) %>%
-    add_row(variable.name = "prob_dyspnoea_ac_no_lof", value = 1) %>%
-    mutate(value = value * ac_lof_probs$value) %>%
-    add_column(at_value = at_probs$value) %>%
-    mutate(value = ifelse(grepl("death", variable.name)|grepl("_mi_", variable.name),
-                          yes = at_value,
-                          no = value)) %>%
-    select(c(variable.name, value))
+    add_row(variable.name = "prob_dyspnoea_ac_no_lof", value = 1)
 }
-ac_no_lof_probs_load <- parameters_STEMI %>%
-  filter(grepl("prob", variable.name)) %>%
-  filter(grepl("_ac_no_lof", variable.name)) %>%
-  select(c(variable.name, value))
 
 # Assemble into single probability dataframe:
-prob_df <- rbind(ac_lof_probs %>% select(-odds),
-                 ac_no_lof_probs,
-                 at_probs,
-                 ap_probs) %>%
-  mutate(variable.name = variable.name %>%
-           str_replace("_vs_ac_lof", "") %>%
-           str_replace("^or_", "prob_") %>%
-           str_replace("^hr_", "prob_"))
+prob_df <- rescale_probs(baseline_prob_df,
+                         at_ratio_df,
+                         ap_ratio_df,
+                         ac_no_lof_ratio_df)
 
 # Set up scaling for discounting by time step
 discount_by_cycle <- (1 / (1 + parameters_STEMI$value[
@@ -338,9 +355,67 @@ event_costs <- parameters_STEMI %>%
   mutate(variable.name = gsub("_pp", "", variable.name))
 
 ### Parameters for Markov cohort model ####
-# Read in age/health state-dependent mortality rates:
-mortality_prob_by_age <- read_xlsx("data-inputs/masterfile_240325.xlsx",
-                                   sheet = "time_event_mortality")
+
+prop_male <- parameters_STEMI$value[
+  parameters_STEMI$variable.name=="proportion_male"]
+
+# Read in standardised mortality ratios
+smr_df <- read_xlsx("data-inputs/masterfile_270425.xlsx",
+                    sheet = "age_sex_dependant_mortality",
+                    range = "A3:E8") %>%
+  mutate(SMRs = SMRs %>%
+           str_to_lower() %>%
+           str_replace("smr_", "") %>%
+           str_replace("no further event", "no_event") %>%
+           str_replace("reinfarction", "mi") %>%
+           str_replace("post-", "post_"))
+
+# Make copy containing only values - this distinction should be useful for PSA
+# purposes
+smr_vals <- smr_df %>%
+  select(c(SMRs,
+           value)) %>%
+  spread(SMRs, value)
+
+# Function for calculating mortality by age for a cohort given an SMR
+apply_smr <- function(mort_female,
+                      mort_male,
+                      smr,
+                      prop_male){
+  adj_female <- pmin(1, smr * mort_female)
+  adj_male <- pmin(1, smr * mort_male)
+  return((1 - prop_male) * adj_female +
+           prop_male * adj_male)
+} 
+
+# Read in life table for healthy individuals
+mortality_prob_by_age <- read_xlsx("data-inputs/masterfile_270425.xlsx",
+                        sheet = "age_sex_dependant_mortality",
+                        range = "A12:D52") %>%
+  mutate(no_event = apply_smr(mortality_female,
+                              mortality_male,
+                              smr_vals$no_event,
+                              prop_male),
+         mi = apply_smr(mortality_female,
+                        mortality_male,
+                        smr_vals$mi,
+                        prop_male),
+         post_mi = apply_smr(mortality_female,
+                             mortality_male,
+                             smr_vals$post_mi,
+                             prop_male),
+         stroke = apply_smr(mortality_female,
+                            mortality_male,
+                            smr_vals$stroke,
+                            prop_male),
+         post_stroke = apply_smr(mortality_female,
+                                 mortality_male,
+                                 smr_vals$post_stroke,
+                                 prop_male)) %>%
+  select(-c(mortality_female,
+            mortality_male,
+            age_female,
+            age_male))
 
 # Write in Markov parameters directly (these come from the literature)
 markov_pars <- data.frame(parameter.list = c("mi",
