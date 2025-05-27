@@ -32,6 +32,10 @@ prob_from_or <- function(or, base_odds){
   return (or * base_odds / (1 + or * base_odds))
 } %>% Vectorize()
 
+odds_from_prob <- function(prob){
+  return (prob / (1 - prob))
+} %>% Vectorize()
+
 # Function for building a new probability dataframe based on updates to baseline
 # risks or odds/hazard ratios. A set of baseline risks needs to be provided
 rescale_probs <- function(baseline_prob_df,
