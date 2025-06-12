@@ -77,7 +77,8 @@ rescale_probs <- function(baseline_prob_df,
     mutate(variable.name = variable.name %>%
              str_replace("_vs_ac_lof", "") %>%
              str_replace("^or_", "prob_") %>%
-             str_replace("^hr_", "prob_"))
+             str_replace("^hr_", "prob_") %>%
+             str_replace("^rr_", "prob_"))
   return(prob_df)
 }
 
@@ -123,7 +124,7 @@ full_names <- sapply(1:(n_subpops*n_states),
 
 #### Now build the decision tree model ####
 
-parameters_STEMI <- read_xlsx("data-inputs/masterfile_270425.xlsx",
+parameters_STEMI <- read_xlsx("data-inputs/masterfile_100625.xlsx",
                               sheet = "Parameters.STEMI") %>% # Skip row 1 since this doesn't match the format of other rows
   rename_all(make.names) %>% # Converts parameter names in valid R names
   rename_all(.funs = function(name){
@@ -143,14 +144,18 @@ parameters_STEMI <- read_xlsx("data-inputs/masterfile_270425.xlsx",
            str_to_lower() %>% # Standardise parameter names for use with other objects
            str_replace_all(" ", "_") %>%
            str_replace_all("-", "_") %>%
+           str_replace_all("__", "_") %>%
            str_replace_all("with_", "") %>%
            str_replace_all("in_", "") %>%
+           str_replace_all("nolof", "no_lof") %>%
            str_replace_all("hazard_ratio", "hr") %>%
            str_replace_all("standard_care", "sc") %>%
            str_replace_all("reinfarction", "mi") %>%
            str_replace_all("tica_vs_clop", "at") %>%
            str_replace_all("pras_vs_clop", "ap") %>%
            str_replace_all("ac$", "ac_lof") %>%
+           str_replace_all("_vs_ac_standard", "") %>%
+           str_replace_all("_vs_at_standard", "") %>%
            str_replace_all("mbleed", "minor_bleed") %>%
            str_replace_all("maj_bleed", "major_bleed") %>%
            str_replace_all("bleeding", "bleed")) %>%
@@ -181,13 +186,13 @@ ap_ratio_df <- parameters_STEMI %>%
 
 if (UNIQUE_NO_LOF_PROBS){
   ac_no_lof_ratio_df <- parameters_STEMI %>%
-    filter(grepl("^hr_", variable.name)) %>%
+    filter(grepl("^hr_", variable.name)|grepl("^rr_", variable.name)) %>%
     filter(grepl("_ac_no_lof", variable.name)) %>%
     select(c(variable.name, value)) %>%
     add_row(variable.name = "prob_dyspnoea_ac_no_lof", value = 1)
 }else{
   ac_no_lof_ratio_df <- parameters_STEMI %>%
-    filter(grepl("^hr_", variable.name)) %>%
+    filter(grepl("^hr_", variable.name)|grepl("^rr_", variable.name)) %>%
     filter(grepl("_ac_no_lof", variable.name)) %>%
     add_row(variable.name = "prob_dyspnoea_ac_no_lof", value = 1)
 }
@@ -199,8 +204,9 @@ prob_df <- rescale_probs(baseline_prob_df,
                          ac_no_lof_ratio_df)
 
 # Set up scaling for discounting by time step
-discount_by_cycle <- (1 / (1 + parameters_STEMI$value[
-  parameters_STEMI$variable.name=="qaly_discount_rate"])^seq(
+discount_by_cycle <- (1 / (1 + parameters_STEMI$value[(
+  parameters_STEMI$variable.name=="qaly_discount_rate")|
+    (parameters_STEMI$variable.name=="disc_effect_b")])^seq(
     1.0, time_hor-1, by = time_step))
 
 # Note: following appears to be unnecessary
@@ -288,18 +294,18 @@ course_dur_by_event_sc <- data.frame(event = c("no_event",
                                                "stroke",
                                                "mi",
                                                "death"),
-                                     duration = c(parameters_STEMI$value[parameters_STEMI$variable.name=="md_no_event"],
-                                                  parameters_STEMI$value[parameters_STEMI$variable.name=="md_mi_stroke_sc"],
-                                                  parameters_STEMI$value[parameters_STEMI$variable.name=="md_mi_stroke_sc"],
-                                                  AVE_TIME_TO_EVENT * parameters_STEMI$value[parameters_STEMI$variable.name=="md_mi_stroke_sc"])) # Assume death occurs half way through course
+                                     duration = c(parameters_STEMI$value[(parameters_STEMI$variable.name=="md_no_event")|(parameters_STEMI$variable.name=="md_328")],
+                                                  parameters_STEMI$value[(parameters_STEMI$variable.name=="md_mi_stroke_sc")|(parameters_STEMI$variable.name=="md_365_day")],
+                                                  parameters_STEMI$value[(parameters_STEMI$variable.name=="md_mi_stroke_sc")|(parameters_STEMI$variable.name=="md_365_day")],
+                                                  AVE_TIME_TO_EVENT * parameters_STEMI$value[(parameters_STEMI$variable.name=="md_mi_stroke_sc")|(parameters_STEMI$variable.name=="md_365_day")])) # Assume death occurs half way through course
 course_dur_by_event_pc <- data.frame(event = c("no_event",
                                                "stroke",
                                                "mi",
                                                "death"),
-                                     duration = c(parameters_STEMI$value[parameters_STEMI$variable.name=="md_no_event"],
-                                                  parameters_STEMI$value[parameters_STEMI$variable.name=="md_mi_stroke_pc"],
-                                                  parameters_STEMI$value[parameters_STEMI$variable.name=="md_mi_stroke_pc"],
-                                                  AVE_TIME_TO_EVENT * parameters_STEMI$value[parameters_STEMI$variable.name=="md_mi_stroke_pc"])) # Assume death occurs half way through course
+                                     duration = c(parameters_STEMI$value[(parameters_STEMI$variable.name=="md_no_event")|(parameters_STEMI$variable.name=="md_328")],
+                                                  parameters_STEMI$value[(parameters_STEMI$variable.name=="md_mi_stroke_pc")|(parameters_STEMI$variable.name=="md_365_day")],
+                                                  parameters_STEMI$value[(parameters_STEMI$variable.name=="md_mi_stroke_pc")|(parameters_STEMI$variable.name=="md_365_day")],
+                                                  AVE_TIME_TO_EVENT * parameters_STEMI$value[(parameters_STEMI$variable.name=="md_mi_stroke_pc")|(parameters_STEMI$variable.name=="md_365_day")])) # Assume death occurs half way through course
 
 # Now get course costs by combination of drug and event (bleeds do not affect
 # costs here)
@@ -364,7 +370,7 @@ prop_male <- parameters_STEMI$value[
   parameters_STEMI$variable.name=="proportion_male"]
 
 # Read in standardised mortality ratios
-smr_df <- read_xlsx("data-inputs/masterfile_270425.xlsx",
+smr_df <- read_xlsx("data-inputs/masterfile_100625.xlsx",
                     sheet = "age_sex_dependant_mortality",
                     range = "A3:E8") %>%
   mutate(SMRs = SMRs %>%
@@ -393,7 +399,7 @@ apply_smr <- function(mort_female,
 } 
 
 # Read in life table for healthy individuals
-mortality_prob_by_age <- read_xlsx("data-inputs/masterfile_270425.xlsx",
+mortality_prob_by_age <- read_xlsx("data-inputs/masterfile_100625.xlsx",
                         sheet = "age_sex_dependant_mortality",
                         range = "A12:D52") %>%
   mutate(no_event = apply_smr(mortality_female,

@@ -435,12 +435,9 @@ utils_from_markov_trace <- function(MT,
              post_mi * discount_by_cycle ) %>%
     mutate(death =
              death * discount_by_cycle )
-  MT_utils$halfstep <- c(0.5 * (MT_utils$undiscounted_utility[1:38] +
-                                  MT_utils$undiscounted_utility[2:39]),
-                         0)
-  MT_utils$discounted_halfstep <- c(0.5 * (MT_utils$discounted_utility[1:38] +
-                                             MT_utils$discounted_utility[2:39]),
-                                    0)
+  MT_utils$halfstep <- 0.5 * (MT_utils$undiscounted_utility[1:38] +
+                                c(MT_utils$undiscounted_utility[2:39], 0))
+  MT_utils$discounted_halfstep <- MT_utils$halfstep * discount_by_cycle
   return(MT_utils)
 }
 
@@ -484,12 +481,9 @@ costs_from_markov_trace <- function(MT,
              post_mi * discount_by_cycle ) %>%
     mutate(death =
              death * discount_by_cycle )
-  MT_costs$halfstep <- c(0.5 * (MT_costs$undiscounted_cost[1:38] +
-                                  MT_costs$undiscounted_cost[2:39]),
-                         0)
-  MT_costs$discounted_halfstep <- c(0.5 * (MT_costs$discounted_cost[1:38] +
-                                             MT_costs$discounted_cost[2:39]),
-                                    0)
+  MT_costs$halfstep <- 0.5 * (MT_costs$undiscounted_cost[1:39] +
+                                c(MT_costs$undiscounted_cost[2:39], 0))
+  MT_costs$discounted_halfstep <- MT_costs$halfstep * discount_by_cycle
   return(MT_costs)
 }
 

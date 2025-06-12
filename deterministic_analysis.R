@@ -293,7 +293,14 @@ dt_results_sc <- dt_results_sc %>%
   filter(grepl("event|death|post", subpop)) %>%
   filter(!grepl("ac_no_lof", subpop))
 
-
+# Add extra column to PC arm results which subtracts probability mass
+# corresponding to individuals who enter standard care, for ease of comparison
+# with outputs in workbook
 dt_results_pc <- dt_results_pc %>%
   filter(grepl("event|death|post", subpop)) %>%
-  filter(!grepl("ac_lof", subpop))
+  filter(!grepl("ac_lof", subpop)) %>%
+  mutate(prob_sc = dt_results_sc$prob) %>%
+  mutate(prob_minus_sc = ifelse(grepl("^ac", subpop),
+                                prob,
+                                prob - ((1 - pc_uptake) + pc_uptake * (1 - p_test_followed)) * prob_sc)) %>%
+  select(-prob_sc)
