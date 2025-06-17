@@ -1,14 +1,6 @@
 # This file contains the functions for running the decision tree analyses and
 # the Markov model.
 
-library("dplyr")
-library("expm")
-library("ggplot2")
-library("Matrix")
-library("readxl")
-library("stringr")
-library("tidyverse")
-
 # Define functions to calculate end state probablities after passing through
 # some combination of standard care, subroutine A, and subroutine B.
 

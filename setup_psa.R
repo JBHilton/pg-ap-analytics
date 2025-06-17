@@ -17,9 +17,12 @@ library("dplyr")
 library("expm")
 library("ggplot2")
 library("Matrix")
+library("matrixStats")
 library("readxl")
 library("stringr")
 library("tidyverse")
+
+source("psa_functions.R")
 
 # Set time horizon
 time_hor <- 40.
@@ -173,3 +176,110 @@ draw_df <- do_PSA_draw(uncertainty_df)
 rewrite <- rewrite_pars_from_draw(parameters_STEMI, draw_df)
 par_df <- rewrite[[1]]
 markov_df <- rewrite[[2]]
+
+# Try multiple draws at once:
+tall_df <- do_tall_PSA_draw(uncertainty_df,
+                            10)
+n_tsteps <- time_hor - 1
+example_results <- run_PSA_arm_comparison(parameters_STEMI,
+                                          draw_df)
+
+n_sample <- 1000
+start_time <- Sys.time()
+multi_results <- lapply(1:n_sample,
+                        FUN = function(i){
+                          draw_i <- do_PSA_draw(uncertainty_df)
+                          res_i <- run_PSA_arm_comparison(parameters_STEMI,
+                                                                    draw_i) %>%
+                            mutate(sample_id = as.character(i))
+                          return(res_i)
+                        }) %>%
+  bind_rows() %>% 
+  summarise(sample_id = c(sample_id, 'mean'),
+            across(where(is.numeric), ~ c(., mean(.))))
+end_time <- Sys.time()
+print(paste("PSA for",
+            n_sample,
+            "samples conducted in",
+            difftime(end_time,
+                     start_time,
+                     units = "secs"),
+            "seconds."))
+
+ce_line_df <- data.frame(x = c(min(multi_results$inc_util_dc_hs),
+                               max(multi_results$inc_util_dc_hs),
+                               min(multi_results$inc_util_dc_hs),
+                               max(multi_results$inc_util_dc_hs)),
+                         ce_threshold = c(2*10e4,
+                                          2*10e4,
+                                          3*10e4,
+                                          3*10e4)) %>%
+  mutate(y = x * ce_threshold)
+
+ce_plane_plot <- ggplot(multi_results[1:n_sample, ],
+                        aes(x = inc_util_dc_hs,
+                            y = inc_cost_dc_hs)) +
+  geom_point() +
+  geom_line(data = ce_line_df,
+            aes(x=x,
+                y=y,
+                group = ce_threshold,
+                color = ce_threshold))
+
+multi_results <- multi_results %>%
+  mutate(icer = inc_cost_udc_hs / inc_util_dc_hs)
+
+# Add indicator for whether ICER passes threshold for each sample
+ce_threshold = seq(from = 0.,
+                   to = 18000.,
+                   by = 500.)
+for (i in 1:length(ce_threshold)){
+  varname <- paste("ce_threshold_", ce_threshold[[i]])
+  multi_results[[varname]] <- ifelse(
+    multi_results$icer < ce_threshold[[i]],
+    1,
+    0)
+}
+
+# Function to calculate the acceptance probability for a given cost
+# effectiveness threshold given a set of ICERs from PSA
+calculate_acc_prob <- function(ce_threshold,
+                               icers){
+  (ifelse(icers < ce_threshold,
+          1,
+          0) %>% sum()) / n_sample
+} %>% Vectorize()
+
+ce_thresh_df <- data.frame(ce_threshold = ce_threshold) %>%
+  rowwise() %>%
+  mutate(acceptance_prob =
+           calculate_acc_prob(ce_threshold, multi_results$icer))
+
+# Add bootstrap samples:
+n_bootstrap <- 1000
+for (i in 1:n_bootstrap){
+  varname <- paste("bootstrap_sample", i)
+  sample_icers <- sample(multi_results$icer,
+                         n_sample,
+                         replace = TRUE)
+  temp_df <- data.frame(ce_threshold = ce_threshold) %>%
+    rowwise() %>%
+    mutate(acceptance_prob =
+             calculate_acc_prob(ce_threshold, sample_icers))
+  ce_thresh_df[[varname]] <- temp_df$acceptance_prob
+}
+ce_thresh_df$lower_95 = rowQuantiles(as.matrix(ce_thresh_df[, -c(1, 2)]),
+                                 probs = 0.025)
+ce_thresh_df$upper_95 = rowQuantiles(as.matrix(ce_thresh_df[, -c(1, 2)]),
+                                     probs = 0.975)
+ce_thresh_df <- ce_thresh_df[, -which(grepl("bootstrap", colnames(ce_thresh_df)))]
+
+ce_thresh_plot <- ggplot(ce_thresh_df,
+                         aes(x = ce_threshold,
+                             y = acceptance_prob)) +
+  geom_point() +
+  geom_ribbon(aes(ymin = lower_95,
+              ymax = upper_95),
+              alpha = 0.2,
+              colour = "blue")
+  

@@ -428,7 +428,7 @@ mortality_prob_by_age <- read_xlsx("data-inputs/masterfile_100625.xlsx",
             age_male))
 
 # Write in Markov parameters directly (these come from the literature)
-markov_pars <- data.frame(parameter.list = c("mi",
+base_markov_pars <- data.frame(parameter.list = c("mi",
                                              "stroke"),
                           value = c(.043,
                                     .0112))

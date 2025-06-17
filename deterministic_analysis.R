@@ -50,8 +50,6 @@ source("make_parameters.R")
 source("simulation_functions.R")
 
 #### ICER calculation ####
-# Now that we've defined the modelling workflow, let's calculate an ICER
-# for point of care vs standard care:
 
 n_tsteps <- time_hor - 1
 
