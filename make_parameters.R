@@ -216,8 +216,8 @@ discount_by_cycle <- (1 / (1 + parameters_STEMI$value[(
 
 
 # Start ages specified on row 1 of parameter matrices:
-start_age_female <- parameters_STEMI$value[parameters_STEMI$variable.name=="start_age_female"]
-start_age_male <- parameters_STEMI$value[parameters_STEMI$variable.name=="start_age_male"]
+start_age_female <- parameters_STEMI$value[(parameters_STEMI$variable.name=="start_age_female")|(parameters_STEMI$variable.name=="start_age_f")]
+start_age_male <- parameters_STEMI$value[(parameters_STEMI$variable.name=="start_age_male")|(parameters_STEMI$variable.name=="start_age_m")]
 
 # List parameters for decision tree
 pc_uptake <- parameters_STEMI$value[parameters_STEMI$variable.name=="prob_test_order"]
@@ -428,7 +428,7 @@ mortality_prob_by_age <- read_xlsx("data-inputs/masterfile_100625.xlsx",
             age_male))
 
 # Write in Markov parameters directly (these come from the literature)
-base_markov_pars <- data.frame(parameter.list = c("mi",
+markov_pars <- data.frame(parameter.list = c("mi",
                                              "stroke"),
                           value = c(.043,
                                     .0112))

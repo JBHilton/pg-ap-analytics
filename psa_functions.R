@@ -1,6 +1,70 @@
 # This script contains functions needed for carrying out probabilistic
 # sensitivity analysis.
 
+# Start ages specified on row 1 of parameter matrices:
+start_age_female <- parameters_STEMI$value[(parameters_STEMI$variable.name=="start_age_female")|(parameters_STEMI$variable.name=="start_age_f")]
+start_age_male <- parameters_STEMI$value[(parameters_STEMI$variable.name=="start_age_male")|(parameters_STEMI$variable.name=="start_age_m")]
+
+prop_male <- parameters_STEMI$value[
+  parameters_STEMI$variable.name=="proportion_male"]
+
+# Function for calculating utility of a given event in a given year
+utility_formula <- function(util_val,
+                            tstep,
+                            prop_male){
+  u_male <- util_val * (0.9508566 +
+                     (0.0212126 * 1) -
+                     (0.0002587 * (tstep + start_age_male)) -
+                     (0.0000332 * (tstep + start_age_male)^2))
+  u_female <- util_val * (0.9508566 +
+                       (0.0212126 * 0) -
+                       (0.0002587 * (tstep + start_age_female)) -
+                       (0.0000332 * (tstep + start_age_female)^2))
+  return(prop_male * u_male + (1 - prop_male) * u_female)
+}
+
+# Function for calculating a utility over time matrix from a PSA draw
+rewrite_markov_utils <- function(draw_df,
+                                 time_hor,
+                                 prop_male){
+  markov_utils <- data.frame(no_event = sapply(1:time_hor,
+                                               FUN = function(t){
+                                                 utility_formula(draw_df$draw[
+                                                   which(draw_df$variable.name=="utility_no_event")],
+                                                   t,
+                                                   prop_male)
+                                               }),
+                             stroke = sapply(1:time_hor,
+                                               FUN = function(t){
+                                                 utility_formula(draw_df$draw[
+                                                   which(draw_df$variable.name=="utility_stroke")],
+                                                   t,
+                                                   prop_male)
+                                               }),
+                             post_stroke = sapply(1:time_hor,
+                                               FUN = function(t){
+                                                 utility_formula(draw_df$draw[
+                                                   which(draw_df$variable.name=="utility_post_stroke")],
+                                                   t,
+                                                   prop_male)
+                                               }),
+                             mi = sapply(1:time_hor,
+                                               FUN = function(t){
+                                                 utility_formula(draw_df$draw[
+                                                   which(draw_df$variable.name=="utility_mi")],
+                                                   t,
+                                                   prop_male)
+                                               }),
+                             post_mi = sapply(1:time_hor,
+                                               FUN = function(t){
+                                                 utility_formula(draw_df$draw[
+                                                   which(draw_df$variable.name=="utility_post_mi")],
+                                                   t,
+                                                   prop_male)
+                                               }))
+  return(markov_utils)
+}
+
 # Function for building a new probability dataframe based on updates to baseline
 # risks or odds/hazard ratios. A set of baseline risks needs to be provided
 rescale_probs <- function(baseline_prob_df,
@@ -148,11 +212,6 @@ run_PSA_arm_comparison <- function(par_df,
       (par_df$variable.name=="disc_effect_b")])^seq(
         1.0, time_hor-1, by = time_step))
   
-  
-  # Start ages specified on row 1 of parameter matrices:
-  start_age_female <- par_df$value[par_df$variable.name=="start_age_female"]
-  start_age_male <- par_df$value[par_df$variable.name=="start_age_male"]
-  
   # List parameters for decision tree
   pc_uptake <- par_df$value[par_df$variable.name=="prob_test_order"]
   pc_test_cost <- par_df$value[par_df$variable.name=="poct_cost"]
@@ -292,9 +351,6 @@ run_PSA_arm_comparison <- function(par_df,
   
   ### Parameters for Markov cohort model ####
   
-  prop_male <- par_df$value[
-    par_df$variable.name=="proportion_male"]
-  
   # Read in standardised mortality ratios
   smr_df <- read_xlsx("data-inputs/masterfile_100625.xlsx",
                       sheet = "age_sex_dependant_mortality",
@@ -353,12 +409,14 @@ run_PSA_arm_comparison <- function(par_df,
               age_female,
               age_male))
   
-  # Load utilities and add zeros for death
-  markov_utils <- read_xlsx("data-inputs/masterfile_240325.xlsx",
-                            sheet = "time_event_utility") %>%
+  # Load utilities and add zeros for death  
+  markov_utils <- rewrite_markov_utils(draw_df,
+                                       time_hor,
+                                       prop_male) %>%
     mutate(death = 0) %>%
     select(all_of(markov_states)) # Last step just makes sure ordering matches model
   markov_utils <- markov_utils[1:39, ] # Don't end up using last entry
+
   
   # Extract costs from main parameter table
   markov_costs <- par_df %>%

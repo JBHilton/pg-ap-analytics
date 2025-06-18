@@ -22,8 +22,6 @@ library("readxl")
 library("stringr")
 library("tidyverse")
 
-source("psa_functions.R")
-
 # Set time horizon
 time_hor <- 40.
 time_step <- 1.
@@ -118,6 +116,15 @@ parameters_STEMI <- read_xlsx("data-inputs/masterfile_100625.xlsx",
            str_replace_all("bleeding", "bleed")) %>%
   mutate(value = as.numeric(value),
          sample.size = as.numeric(sample.size)) # Convert values from characters to numbers
+
+source("psa_functions.R")
+
+# Load utilities and add zeros for death
+base_markov_utils <- read_xlsx("data-inputs/masterfile_240325.xlsx",
+                               sheet = "time_event_utility") %>%
+  mutate(death = 0) %>%
+  select(all_of(markov_states)) # Last step just makes sure ordering matches model
+base_markov_utils <- base_markov_utils[1:39, ] # Don't end up using last entry
 
 # Function for fixing variable names for tree utilities:
 rename_utility_variables <- function(name){
@@ -280,6 +287,5 @@ ce_thresh_plot <- ggplot(ce_thresh_df,
   geom_point() +
   geom_ribbon(aes(ymin = lower_95,
               ymax = upper_95),
-              alpha = 0.2,
-              colour = "blue")
-  
+              alpha = 0.2) +
+  theme_bw()
