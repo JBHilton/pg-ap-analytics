@@ -8,6 +8,24 @@ start_age_male <- parameters_STEMI$value[(parameters_STEMI$variable.name=="start
 prop_male <- parameters_STEMI$value[
   parameters_STEMI$variable.name=="proportion_male"]
 
+# Need to load in mortality table
+mort_table <- read_xlsx("data-inputs/masterfile_100625.xlsx",
+                       sheet = "age_sex_dependant_mortality",
+                       range = "A12:D52")
+
+# Function for calculating mortality by age for a cohort given an SMR
+apply_smr <- function(mort_female,
+                      mort_male,
+                      smr,
+                      prop_male){
+  adj_female <- pmin(1, smr * mort_female)
+  adj_male <- pmin(1, smr * mort_male)
+  return((1 - prop_male) * adj_female +
+           prop_male * adj_male)
+}
+
+
+
 # Function for calculating utility of a given event in a given year
 utility_formula <- function(util_val,
                             tstep,
@@ -111,6 +129,40 @@ rescale_probs <- function(baseline_prob_df,
   return(prob_df)
 }
 
+rewrite_dt_utilities <- function(baseline_util_df){
+  # Utilities associated with events:
+  event_utilities <- par_df %>%
+    filter(grepl("utility", parameter.list)) %>%
+    select(c(variable.name, value)) %>%
+    mutate(variable.name = gsub("utility_", "", variable.name) %>%
+             str_replace_all("_tree", "")) %>%
+    filter(!grepl("_ac", variable.name)) %>% # Drop any derived drug-specific values
+    filter(!grepl("_at", variable.name)) %>%
+    filter(!grepl("_ap", variable.name)) %>%
+    filter(!grepl("annual", variable.name)) %>% # Drop any annual-scale values
+    add_row(variable.name = "death",
+            value = 0) # Apply no_event utility before death, 0 afterwards
+  
+  # Add dyspnoea utilities, converting from whole-year to 30 day values, and
+  # convert bleed decrements to utilities
+  # NOTE: Utility decrements for bleed events are loaded in in units of years so
+  # do not need to be converted.
+  duration_dyspnoea <- par_df$value[
+    which(par_df$variable.name=="duration_dyspnoea")] / 365
+  event_utilities <- event_utilities %>%
+    add_row(variable.name = "dyspnoea",
+            value = 1 - duration_dyspnoea * draw_df$draw[
+              which(draw_df$variable.name=="u_dec_dyspnoea")]) %>%
+    add_row(variable.name = "major_bleed",
+            value = 1 - draw_df$draw[
+              which(draw_df$variable.name=="annuaL_utility_dec_major_bleed")]) %>%
+    add_row(variable.name = "minor_bleed",
+            value = 1 - draw_df$draw[
+              which(draw_df$variable.name=="annuaL_utility_dec_minor_bleed")]) %>%
+    filter(!grepl("dec_", variable.name))
+  return(event_utilities)
+}
+
 
 do_PSA_draw <- function(uc_df){
   uc_df$draw <- 0
@@ -148,10 +200,26 @@ do_tall_PSA_draw <- function(uc_df,
 rewrite_pars_from_draw <- function(par_df, draw_df){
   par_df$value[which(par_df$variable.name %in% draw_df$variable.name)] <-
     draw_df$draw[which(draw_df$variable.name %in% par_df$variable.name)]
+  par_df$value[par_df$variable.name == "utility_no_event_tree"] <-
+    utility_formula(draw_df$draw[
+      which(draw_df$variable.name=="utility_no_event")],
+      0,
+      prop_male)
+  par_df$value[par_df$variable.name == "utility_mi_tree"] <-
+    utility_formula(draw_df$draw[
+      which(draw_df$variable.name=="utility_mi")],
+      0,
+      prop_male)
+  par_df$value[par_df$variable.name == "utility_stroke_tree"] <-
+    utility_formula(draw_df$draw[
+      which(draw_df$variable.name=="utility_stroke")],
+      0,
+      prop_male)
+  
   markov_pars <- data.frame(parameter.list = c("mi",
                                                "stroke"),
                             value = c(draw_df$draw[draw_df$variable.name=="prob_nevent_to_rinfarc"],
-                                      draw_df$draw[draw_df$variable.name=="prob_nevent_to_rinfarc"]))
+                                      draw_df$draw[draw_df$variable.name=="prob_nevent_to_stk"]))
   return(list(par_df, markov_pars))
 }
 
@@ -351,39 +419,24 @@ run_PSA_arm_comparison <- function(par_df,
   
   ### Parameters for Markov cohort model ####
   
-  # Read in standardised mortality ratios
-  smr_df <- read_xlsx("data-inputs/masterfile_100625.xlsx",
-                      sheet = "age_sex_dependant_mortality",
-                      range = "A3:E8") %>%
-    mutate(SMRs = SMRs %>%
-             str_to_lower() %>%
-             str_replace("smr_", "") %>%
-             str_replace("no further event", "no_event") %>%
-             str_replace("reinfarction", "mi") %>%
-             str_replace("post-", "post_"))
+  # Get standardised mortality ratios from PSA draw
+  smr_df <- draw_df %>%
+    filter(grepl("smr", variable.name))
   
   # Make copy containing only values - this distinction should be useful for PSA
   # purposes
   smr_vals <- smr_df %>%
-    select(c(SMRs,
-             value)) %>%
-    spread(SMRs, value)
-  
-  # Function for calculating mortality by age for a cohort given an SMR
-  apply_smr <- function(mort_female,
-                        mort_male,
-                        smr,
-                        prop_male){
-    adj_female <- pmin(1, smr * mort_female)
-    adj_male <- pmin(1, smr * mort_male)
-    return((1 - prop_male) * adj_female +
-             prop_male * adj_male)
-  } 
+    select(c(variable.name,
+             Value)) %>%
+    mutate(variable.name = variable.name %>%
+             str_replace_all("smr_",
+                             "") %>%
+             str_replace_all("_further",
+                             "")) %>%
+    spread(variable.name, Value)
   
   # Read in life table for healthy individuals
-  mortality_prob_by_age <- read_xlsx("data-inputs/masterfile_100625.xlsx",
-                                     sheet = "age_sex_dependant_mortality",
-                                     range = "A12:D52") %>%
+  mortality_prob_by_age <- mort_table %>%
     mutate(no_event = apply_smr(mortality_female,
                                 mortality_male,
                                 smr_vals$no_event,

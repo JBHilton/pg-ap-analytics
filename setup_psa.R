@@ -44,13 +44,6 @@ odds_from_prob <- function(prob){
 
 # Define subpopulations
 
-# Keeping this for now in case we revert and want a quick reference point for
-# exact formatting
-old_subpop_names <- c("clo_lof",
-                      "clo_no_lof",
-                      "tic",
-                      "pra")
-
 subpop_names <- c("ac_lof",
                   "ac_no_lof",
                   "at",
@@ -223,15 +216,34 @@ ce_line_df <- data.frame(x = c(min(multi_results$inc_util_dc_hs),
                                           3*10e4)) %>%
   mutate(y = x * ce_threshold)
 
-ce_plane_plot <- ggplot(multi_results[1:n_sample, ],
-                        aes(x = inc_util_dc_hs,
-                            y = inc_cost_dc_hs)) +
+ce_plane_plot_with_mean <- ggplot(multi_results[1:n_sample, ],
+                                  aes(x = inc_util_dc_hs,
+                                      y = inc_cost_dc_hs)) +
+  geom_point() +
+  geom_point(data = multi_results[n_sample+1, ],
+             aes(x = inc_util_dc_hs,
+                 y = inc_cost_dc_hs,
+                 color = "red"),
+             size = 5.,
+             shape = 18) +
+  theme(legend.position = "none") +
+  xlab("Incremental utility") +
+  ylab("Incremental cost")
+ce_plane_plot_with_lines <- ggplot(multi_results[1:n_sample, ],
+                                  aes(x = inc_util_dc_hs,
+                                      y = inc_cost_dc_hs)) +
   geom_point() +
   geom_line(data = ce_line_df,
             aes(x=x,
                 y=y,
-                group = ce_threshold,
-                color = ce_threshold))
+                color = factor(ce_threshold))) +
+  scale_color_manual(labels = c("£20,000",
+                                "£30,000"),
+                     values = c("orange",
+                                "green"))
+  labs(x = "Incremental utility (QALY's)",
+       y = "Incremental cost (£)",
+       color = "Cost-effectiveness threshold")
 
 multi_results <- multi_results %>%
   mutate(icer = inc_cost_udc_hs / inc_util_dc_hs)
@@ -260,13 +272,13 @@ calculate_acc_prob <- function(ce_threshold,
 ce_thresh_df <- data.frame(ce_threshold = ce_threshold) %>%
   rowwise() %>%
   mutate(acceptance_prob =
-           calculate_acc_prob(ce_threshold, multi_results$icer))
+           calculate_acc_prob(ce_threshold, multi_results$icer[1:n_sample]))
 
 # Add bootstrap samples:
-n_bootstrap <- 1000
+n_bootstrap <- 100
 for (i in 1:n_bootstrap){
   varname <- paste("bootstrap_sample", i)
-  sample_icers <- sample(multi_results$icer,
+  sample_icers <- sample(multi_results$icer[1:n_sample],
                          n_sample,
                          replace = TRUE)
   temp_df <- data.frame(ce_threshold = ce_threshold) %>%
@@ -288,4 +300,9 @@ ce_thresh_plot <- ggplot(ce_thresh_df,
   geom_ribbon(aes(ymin = lower_95,
               ymax = upper_95),
               alpha = 0.2) +
-  theme_bw()
+  theme_bw() +
+  scale_y_continuous(labels = scales::percent,
+                     limits = c(0, 1)) +
+  scale_x_continuous(breaks = seq(0, 18000, 2000)) +
+  xlab("Cost-effectiveness threshold (£)") +
+  ylab("Cost-effectiveness probability")
