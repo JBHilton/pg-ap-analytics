@@ -343,7 +343,7 @@ duration_dyspnoea <- parameters_STEMI$value[
 event_utilities <- event_utilities %>%
   add_row(variable.name = "dyspnoea",
           value = 1 - duration_dyspnoea * event_utilities$value[
-            which(event_utilities$variable.name=="dec_dyspnoea")]) %>%
+            which(event_utilities$variable.name=="u_dec_dyspnoea")]) %>%
   add_row(variable.name = "major_bleed",
           value = 1 - event_utilities$value[
             which(event_utilities$variable.name=="dec_major_bleed")]) %>%

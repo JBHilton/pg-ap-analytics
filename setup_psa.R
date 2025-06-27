@@ -163,6 +163,7 @@ uncertainty_df <- read_xlsx("data-inputs/masterfile_100625.xlsx",
            str_replace_all("maj_bleed", "major_bleed") %>%
            str_replace_all("bleeding", "bleed") %>%
            str_replace_all("nofurther", "no")) %>%
+  mutate(distribution = str_to_lower(distribution)) %>%
   # mutate(variable.name = map(variable.name, rename_utility_variables)) %>%
   mutate(par1 = as.numeric(par1),
          par2 = as.numeric(par2)) # Convert values from characters to numbers
@@ -263,28 +264,32 @@ for (i in 1:length(ce_threshold)){
 # Function to calculate the acceptance probability for a given cost
 # effectiveness threshold given a set of ICERs from PSA
 calculate_acc_prob <- function(ce_threshold,
+                               utils,
                                icers){
-  (ifelse(icers < ce_threshold,
-          1,
-          0) %>% sum()) / n_sample
+  length(which((icers < ce_threshold) & (which(utils > 0)))) /
+    n_sample
 } %>% Vectorize()
 
 ce_thresh_df <- data.frame(ce_threshold = ce_threshold) %>%
   rowwise() %>%
   mutate(acceptance_prob =
-           calculate_acc_prob(ce_threshold, multi_results$icer[1:n_sample]))
+           calculate_acc_prob(ce_threshold,
+                              multi_results$inc_util_dc_hs[1:n_sample],
+                              multi_results$icer[1:n_sample]))
 
 # Add bootstrap samples:
 n_bootstrap <- 100
 for (i in 1:n_bootstrap){
   varname <- paste("bootstrap_sample", i)
-  sample_icers <- sample(multi_results$icer[1:n_sample],
-                         n_sample,
-                         replace = TRUE)
+  sample_ids <- sample(1:n_sample,
+                       n_sample,
+                       replace = TRUE)
+  sample_utils <- multi_results$inc_util_dc_hs[sample_ids]
+  sample_icers <- multi_results$icer[sample_ids]
   temp_df <- data.frame(ce_threshold = ce_threshold) %>%
     rowwise() %>%
     mutate(acceptance_prob =
-             calculate_acc_prob(ce_threshold, sample_icers))
+             calculate_acc_prob(ce_threshold, sample_utils, sample_icers))
   ce_thresh_df[[varname]] <- temp_df$acceptance_prob
 }
 ce_thresh_df$lower_95 = rowQuantiles(as.matrix(ce_thresh_df[, -c(1, 2)]),

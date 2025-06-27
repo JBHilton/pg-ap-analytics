@@ -34,7 +34,7 @@ AVE_TIME_TO_EVENT <- 0.5
 
 # Set to true to save the results of the arm comparison as a .csv file. The file
 # path can be set on the following line:
-SAVE_ARM_COMPARISON <- TRUE
+SAVE_ARM_COMPARISON <- FALSE
 SAVE_FILEPATH <- ""
 
 library("data.table")
@@ -107,7 +107,7 @@ MC_costs_pc <- costs_from_markov_trace(MT_pc,
 
 
 # Mean life years:
-life_years_pc <- sum(1 - MT_pc$death)
+life_years_pc <- sum(1 - 0.5 * (MT_pc$death[1:39] + (MT_pc$death[2:40])))
 
 # Now do sc
 
@@ -159,7 +159,7 @@ MC_costs_sc <- costs_from_markov_trace(MT_sc,
                                        markov_costs)
 
 # Mean life years:
-life_years_sc <- sum(1 - MT_sc$death)
+life_years_sc <- sum(1 - 0.5 * (MT_sc$death[1:39] + (MT_sc$death[2:40])))
 
 # Now calculate ICER
 ICER_undisc <- ((dt_pc_cost + sum(MC_costs_pc$undiscounted_cost)) - (dt_sc_cost + sum(MC_costs_sc$undiscounted_cost))) /

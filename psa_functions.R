@@ -166,14 +166,14 @@ rewrite_dt_utilities <- function(baseline_util_df){
 
 do_PSA_draw <- function(uc_df){
   uc_df$draw <- 0
-  uc_df$draw[uc_df$distribution=="Beta"] <-
-    rbeta(length(which(uc_df$distribution=="Beta")),
-          uc_df$par1[uc_df$distribution=="Beta"],
-          uc_df$par2[uc_df$distribution=="Beta"])
-  uc_df$draw[uc_df$distribution=="Gamma"] <-
-    rgamma(length(which(uc_df$distribution=="Gamma")),
-           shape = uc_df$par1[uc_df$distribution=="Gamma"],
-           scale = uc_df$par2[uc_df$distribution=="Gamma"])
+  uc_df$draw[uc_df$distribution=="beta"] <-
+    rbeta(length(which(uc_df$distribution=="beta")),
+          uc_df$par1[uc_df$distribution=="beta"],
+          uc_df$par2[uc_df$distribution=="beta"])
+  uc_df$draw[uc_df$distribution=="gamma"] <-
+    rgamma(length(which(uc_df$distribution=="gamma")),
+           shape = uc_df$par1[uc_df$distribution=="gamma"],
+           scale = uc_df$par2[uc_df$distribution=="gamma"])
   uc_df$draw[uc_df$distribution=="lognormal"] <-
     rlnorm(length(which(uc_df$distribution=="lognormal")),
            uc_df$par1[uc_df$distribution=="lognormal"],
@@ -396,7 +396,7 @@ run_PSA_arm_comparison <- function(par_df,
   event_utilities <- event_utilities %>%
     add_row(variable.name = "dyspnoea",
             value = 1 - duration_dyspnoea * event_utilities$value[
-              which(event_utilities$variable.name=="dec_dyspnoea")]) %>%
+              which(event_utilities$variable.name=="u_dec_dyspnoea")]) %>%
     add_row(variable.name = "major_bleed",
             value = 1 - event_utilities$value[
               which(event_utilities$variable.name=="dec_major_bleed")]) %>%
