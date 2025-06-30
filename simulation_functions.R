@@ -427,7 +427,7 @@ utils_from_markov_trace <- function(MT,
              post_mi * discount_by_cycle ) %>%
     mutate(death =
              death * discount_by_cycle )
-  MT_utils$halfstep <- 0.5 * (MT_utils$undiscounted_utility[1:38] +
+  MT_utils$halfstep <- 0.5 * (MT_utils$undiscounted_utility[1:39] +
                                 c(MT_utils$undiscounted_utility[2:39], 0))
   MT_utils$discounted_halfstep <- MT_utils$halfstep * discount_by_cycle
   return(MT_utils)

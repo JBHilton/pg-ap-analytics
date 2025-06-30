@@ -224,6 +224,7 @@ pc_uptake <- parameters_STEMI$value[parameters_STEMI$variable.name=="prob_test_o
 pc_test_cost <- parameters_STEMI$value[parameters_STEMI$variable.name=="poct_cost"]
 pc_sens <- 1.
 pc_spec <- 1.
+# pc_uptake <- 1.
 
 # In practice we don't model lab testing. I've left outlines of this in the code
 # in case we later decide we do want to make this comparison.
@@ -234,6 +235,7 @@ pc_spec <- 1.
 # l_spec <- .95
 
 p_test_followed = parameters_STEMI$value[parameters_STEMI$variable.name=="prob_test_followed"]
+# p_test_followed <- 1.
 
 p_ac_sc <- parameters_STEMI$value[parameters_STEMI$variable.name=="proportion_ac_standard"] # Proportion prescriped clopidogrel under standard care
 p_at_sc <- parameters_STEMI$value[parameters_STEMI$variable.name=="proportion_at_standard"]  # Proportion prescriped ticagrelor under standard care
@@ -434,10 +436,20 @@ markov_pars <- data.frame(parameter.list = c("mi",
                                     .0112))
 
 # Load utilities and add zeros for death
-markov_utils <- read_xlsx("data-inputs/masterfile_240325.xlsx",
-                          sheet = "time_event_utility") %>%
-  mutate(death = 0) %>%
-  select(all_of(markov_states)) # Last step just makes sure ordering matches model
+markov_utils <- read_xlsx("data-inputs/masterfile_100625.xlsx",
+                          sheet = "markov",
+                          range = "AH7:AM48") %>% # Skip row 1 since this doesn't match the format of other rows
+  rename_all(make.names) %>% # Converts parameter names in valid R names
+  rename_all(.funs = function(name){
+    name %>%
+      make.names() %>%
+      str_replace("\\.", "_") %>%
+      str_replace("reinfarction", "mi") %>%
+      str_replace("dead", "death")})  %>%
+  filter(!row_number() %in% c(1,2)) %>%
+  # mutate(death = 0) %>%
+  select(all_of(markov_states)) %>% # Last step just makes sure ordering matches model
+  mutate_at(markov_states, as.numeric)
 markov_utils <- markov_utils[1:39, ] # Don't end up using last entry
 
 # Extract costs from main parameter table

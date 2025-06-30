@@ -178,6 +178,8 @@ do_PSA_draw <- function(uc_df){
     rlnorm(length(which(uc_df$distribution=="lognormal")),
            uc_df$par1[uc_df$distribution=="lognormal"],
            uc_df$par2[uc_df$distribution=="lognormal"])
+  uc_df$draw[uc_df$variable.name=="prevalence_lof_base_case"] <- max(0.26,
+    uc_df$draw[uc_df$variable.name=="prevalence_lof_base_case"])
   return(uc_df)
 }
 
