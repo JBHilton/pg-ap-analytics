@@ -6,7 +6,7 @@ CONVERSIONS_REQUIRED <- FALSE
 
 # Set to true to directly calculate probabilities for the no-LOF subpopulation,
 # or false to use values from other subpopulations
-UNIQUE_NO_LOF_PROBS <- FALSE
+UNIQUE_NO_LOF_PROBS <- TRUE
 
 # Step correction for death in decision tree and Markov model, i.e. average time
 # to death given death occurs within a given year.
@@ -72,7 +72,7 @@ full_names <- sapply(1:(n_subpops*n_states),
 
 #### Now build the decision tree model ####
 
-parameters_STEMI <- read_xlsx("data-inputs/masterfile_100625.xlsx",
+parameters_STEMI <- read_xlsx("data-inputs/masterfile_070725.xlsx",
                               sheet = "Parameters.STEMI") %>% # Skip row 1 since this doesn't match the format of other rows
   rename_all(make.names) %>% # Converts parameter names in valid R names
   rename_all(.funs = function(name){
@@ -128,7 +128,7 @@ rename_utility_variables <- function(name){
   }
 } %>% Vectorize()
 
-uncertainty_df <- read_xlsx("data-inputs/masterfile_100625.xlsx",
+uncertainty_df <- read_xlsx("data-inputs/masterfile_070725.xlsx",
                             sheet = "random") %>%
   rename_all(.funs = function(name){
     name %>%
@@ -139,6 +139,7 @@ uncertainty_df <- read_xlsx("data-inputs/masterfile_100625.xlsx",
                   "par2")}) %>%
   select(c(variable.name,
            Value,
+           SE,
            par1,
            par2,
            distribution)) %>%
@@ -165,7 +166,8 @@ uncertainty_df <- read_xlsx("data-inputs/masterfile_100625.xlsx",
            str_replace_all("nofurther", "no")) %>%
   mutate(distribution = str_to_lower(distribution)) %>%
   # mutate(variable.name = map(variable.name, rename_utility_variables)) %>%
-  mutate(par1 = as.numeric(par1),
+  mutate(SE = as.numeric(SE),
+         par1 = as.numeric(par1),
          par2 = as.numeric(par2)) # Convert values from characters to numbers
 
 # Reorder so that when we take common lines with parameter dataframe everything

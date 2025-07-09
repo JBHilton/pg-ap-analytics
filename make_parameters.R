@@ -124,7 +124,7 @@ full_names <- sapply(1:(n_subpops*n_states),
 
 #### Now build the decision tree model ####
 
-parameters_STEMI <- read_xlsx("data-inputs/masterfile_100625.xlsx",
+parameters_STEMI <- read_xlsx("data-inputs/masterfile_070725.xlsx",
                               sheet = "Parameters.STEMI") %>% # Skip row 1 since this doesn't match the format of other rows
   rename_all(make.names) %>% # Converts parameter names in valid R names
   rename_all(.funs = function(name){
@@ -372,7 +372,7 @@ prop_male <- parameters_STEMI$value[
   parameters_STEMI$variable.name=="proportion_male"]
 
 # Read in standardised mortality ratios
-smr_df <- read_xlsx("data-inputs/masterfile_100625.xlsx",
+smr_df <- read_xlsx("data-inputs/masterfile_070725.xlsx",
                     sheet = "age_sex_dependant_mortality",
                     range = "A3:E8") %>%
   mutate(SMRs = SMRs %>%
@@ -401,7 +401,7 @@ apply_smr <- function(mort_female,
 } 
 
 # Read in life table for healthy individuals
-mortality_prob_by_age <- read_xlsx("data-inputs/masterfile_100625.xlsx",
+mortality_prob_by_age <- read_xlsx("data-inputs/masterfile_070725.xlsx",
                         sheet = "age_sex_dependant_mortality",
                         range = "A12:D52") %>%
   mutate(no_event = apply_smr(mortality_female,
@@ -436,7 +436,7 @@ markov_pars <- data.frame(parameter.list = c("mi",
                                     .0112))
 
 # Load utilities and add zeros for death
-markov_utils <- read_xlsx("data-inputs/masterfile_100625.xlsx",
+markov_utils <- read_xlsx("data-inputs/masterfile_070725.xlsx",
                           sheet = "markov",
                           range = "AH7:AM48") %>% # Skip row 1 since this doesn't match the format of other rows
   rename_all(make.names) %>% # Converts parameter names in valid R names

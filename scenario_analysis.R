@@ -1361,7 +1361,7 @@ smr_vals$no_event <- 1.6
 smr_vals$mi <- 3.6
 smr_vals$post_mi <- 2.4
 
-mortality_prob_by_age <- read_xlsx("data-inputs/masterfile_270425.xlsx",
+mortality_prob_by_age <- read_xlsx("data-inputs/masterfile_070725.xlsx",
                                    sheet = "age_sex_dependant_mortality",
                                    range = "A12:D52") %>%
   mutate(no_event = apply_smr(mortality_female,

@@ -9,7 +9,7 @@ prop_male <- parameters_STEMI$value[
   parameters_STEMI$variable.name=="proportion_male"]
 
 # Need to load in mortality table
-mort_table <- read_xlsx("data-inputs/masterfile_100625.xlsx",
+mort_table <- read_xlsx("data-inputs/masterfile_070725.xlsx",
                        sheet = "age_sex_dependant_mortality",
                        range = "A12:D52")
 
@@ -105,7 +105,10 @@ rescale_probs <- function(baseline_prob_df,
   
   if (UNIQUE_NO_LOF_PROBS){
     ac_no_lof_probs <- ac_no_lof_ratio_df %>%
-      mutate(value = value * baseline_prob_df$value)
+      mutate(value = ifelse((grepl("death", variable.name)|
+                              grepl("_mi_", variable.name)),
+                            value * at_probs$value,
+                            value * baseline_prob_df$value))
   }else{
     ac_no_lof_probs <- ac_no_lof_ratio_df %>%
       mutate(value = value * baseline_prob_df$value) %>%
