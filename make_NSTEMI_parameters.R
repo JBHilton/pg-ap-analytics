@@ -403,7 +403,7 @@ apply_smr <- function(mort_female,
 # Read in life table for healthy individuals
 mortality_prob_by_age <- read_xlsx("data-inputs/NSTEMI_masterfile_160725.xlsm",
                         sheet = "age_sex_dependant_mortality",
-                        range = "A12:D52") %>%
+                        range = "A12:D51") %>%
   mutate(no_event = apply_smr(mortality_female,
                               mortality_male,
                               smr_vals$no_event,

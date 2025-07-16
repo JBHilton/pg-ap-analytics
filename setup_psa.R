@@ -12,6 +12,10 @@ UNIQUE_NO_LOF_PROBS <- TRUE
 # to death given death occurs within a given year.
 AVE_TIME_TO_EVENT <- 0.5
 
+SAVE_CIS <- FALSE
+
+SAVE_FILEPATH <- ""
+
 library("data.table")
 library("dplyr")
 library("expm")
@@ -197,7 +201,8 @@ multi_results <- lapply(1:n_sample,
                             mutate(sample_id = as.character(i))
                           return(res_i)
                         }) %>%
-  bind_rows() %>% 
+  bind_rows() %>%
+  mutate(icer = inc_cost_dc_hs / inc_util_dc_hs) %>% 
   summarise(sample_id = c(sample_id, 'mean'),
             across(where(is.numeric), ~ c(., mean(.))))
 end_time <- Sys.time()
@@ -247,9 +252,6 @@ ce_plane_plot_with_lines <- ggplot(multi_results[1:n_sample, ],
   labs(x = "Incremental utility (QALY's)",
        y = "Incremental cost (£)",
        color = "Cost-effectiveness threshold")
-
-multi_results <- multi_results %>%
-  mutate(icer = inc_cost_udc_hs / inc_util_dc_hs)
 
 # Add indicator for whether ICER passes threshold for each sample
 ce_threshold = seq(from = 0.,
@@ -313,3 +315,23 @@ ce_thresh_plot <- ggplot(ce_thresh_df,
   scale_x_continuous(breaks = seq(0, 18000, 2000)) +
   xlab("Cost-effectiveness threshold (£)") +
   ylab("Cost-effectiveness probability")
+
+
+ci_df <- data.frame(cost_mean = mean(multi_results$inc_cost_dc_hs[1:n_sample]),
+                    cost_L = quantile(multi_results$inc_cost_dc_hs[1:n_sample], .025),
+                    cost_U = quantile(multi_results$inc_cost_dc_hs[1:n_sample], .975),
+                    util_mean = mean(multi_results$inc_util_dc_hs[1:n_sample]),
+                    util_L = quantile(multi_results$inc_util_dc_hs[1:n_sample], .025),
+                    util_U = quantile(multi_results$inc_util_dc_hs[1:n_sample], .975),
+                    icer_mean = mean(multi_results$icer[1:n_sample]),
+                    icer_L = quantile(multi_results$icer[1:n_sample], .025),
+                    icer_U = quantile(multi_results$icer[1:n_sample], .975),
+                    row.names = ""
+)
+
+if (SAVE_CIS){
+  fwrite(ci_df,
+         file = paste(SAVE_FILEPATH,
+                      "stemi_psa.csv",
+                      sep = ""))
+}

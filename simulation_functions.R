@@ -427,9 +427,40 @@ utils_from_markov_trace <- function(MT,
              post_mi * discount_by_cycle ) %>%
     mutate(death =
              death * discount_by_cycle )
-  MT_utils$halfstep <- 0.5 * (MT_utils$undiscounted_utility[1:39] +
-                                c(MT_utils$undiscounted_utility[2:39], 0))
-  MT_utils$discounted_halfstep <- MT_utils$halfstep * discount_by_cycle
+  halfstep_utils <- (0.5 * (MT[2:(time_hor), ] + rbind(MT[3:(time_hor), ], 0))) %>%
+    mutate(no_event =
+             no_event * value_by_state$no_event ) %>%
+    mutate(stroke =
+             stroke * value_by_state$stroke ) %>%
+    mutate(post_stroke =
+             post_stroke * value_by_state$post_stroke ) %>%
+    mutate(mi =
+             mi * value_by_state$mi ) %>%
+    mutate(post_mi =
+             post_mi * value_by_state$post_mi ) %>%
+    mutate(death =
+             death * value_by_state$death ) %>%
+    mutate(undiscounted_utility = no_event +
+             stroke +
+             post_stroke +
+             mi +
+             post_mi +
+             death) %>%
+    mutate(discounted_utility = undiscounted_utility * discount_by_cycle) %>%
+    mutate(no_event =
+             no_event * discount_by_cycle ) %>%
+    mutate(stroke =
+             stroke * discount_by_cycle ) %>%
+    mutate(post_stroke =
+             post_stroke * discount_by_cycle ) %>%
+    mutate(mi =
+             mi * discount_by_cycle ) %>%
+    mutate(post_mi =
+             post_mi * discount_by_cycle ) %>%
+    mutate(death =
+             death * discount_by_cycle )
+  MT_utils$halfstep <- halfstep_utils$undiscounted_utility
+  MT_utils$discounted_halfstep <- halfstep_utils$discounted_utility
   return(MT_utils)
 }
 
