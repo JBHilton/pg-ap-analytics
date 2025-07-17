@@ -76,8 +76,8 @@ full_names <- sapply(1:(n_subpops*n_states),
 
 #### Now build the decision tree model ####
 
-parameters_STEMI <- read_xlsx("data-inputs/masterfile_070725.xlsx",
-                              sheet = "Parameters.STEMI") %>% # Skip row 1 since this doesn't match the format of other rows
+parameters_STEMI <- read_xlsx("data-inputs/NSTEMI_masterfile_160725.xlsm",
+                              sheet = "Parameters.NSTEMI") %>% # Skip row 1 since this doesn't match the format of other rows
   rename_all(make.names) %>% # Converts parameter names in valid R names
   rename_all(.funs = function(name){
     name %>%
@@ -117,10 +117,20 @@ parameters_STEMI <- read_xlsx("data-inputs/masterfile_070725.xlsx",
 source("psa_functions.R")
 
 # Load utilities and add zeros for death
-base_markov_utils <- read_xlsx("data-inputs/masterfile_240325.xlsx",
-                               sheet = "time_event_utility") %>%
-  mutate(death = 0) %>%
-  select(all_of(markov_states)) # Last step just makes sure ordering matches model
+base_markov_utils <- read_xlsx("data-inputs/NSTEMI_masterfile_160725.xlsm",
+                               sheet = "markov",
+                               range = "AH7:AM48") %>% # Skip row 1 since this doesn't match the format of other rows
+  rename_all(make.names) %>% # Converts parameter names in valid R names
+  rename_all(.funs = function(name){
+    name %>%
+      make.names() %>%
+      str_replace("\\.", "_") %>%
+      str_replace("reinfarction", "mi") %>%
+      str_replace("dead", "death")})  %>%
+  filter(!row_number() %in% c(1,2)) %>%
+  # mutate(death = 0) %>%
+  select(all_of(markov_states)) %>% # Last step just makes sure ordering matches model
+  mutate_at(markov_states, as.numeric)
 base_markov_utils <- base_markov_utils[1:39, ] # Don't end up using last entry
 
 # Function for fixing variable names for tree utilities:
@@ -132,7 +142,7 @@ rename_utility_variables <- function(name){
   }
 } %>% Vectorize()
 
-uncertainty_df <- read_xlsx("data-inputs/masterfile_070725.xlsx",
+uncertainty_df <- read_xlsx("data-inputs/NSTEMI_masterfile_160725.xlsm",
                             sheet = "random") %>%
   rename_all(.funs = function(name){
     name %>%
