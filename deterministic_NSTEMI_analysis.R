@@ -34,7 +34,7 @@ AVE_TIME_TO_EVENT <- 0.5
 
 # Set to true to save the results of the arm comparison as a .csv file. The file
 # path can be set on the following line:
-SAVE_ARM_COMPARISON <- TRUE
+SAVE_ARM_COMPARISON <- FALSE
 SAVE_FILEPATH <- "nstemi_"
 
 library("data.table")
@@ -66,8 +66,8 @@ dt_pc_cost <- sum(dt_results_pc$prob * dt_results_pc$exp_cost)
 dt_pc_util <- sum(dt_results_pc$prob * dt_results_pc$exp_utility)
 
 P0_pc <- sapply(markov_states,
-             FUN=function(event){
-               sum(dt_results_pc$prob[dt_results_pc$event == event])}
+                FUN=function(event){
+                  sum(dt_results_pc$prob[dt_results_pc$event == event])}
 )
 
 markov_update <- function(p, t){
@@ -84,7 +84,7 @@ MT_pc <- sapply(Reduce("%*%", lapply(-1:(n_tsteps-1),
                                          if (t==0){
                                            return(build_markov_model(1))
                                          }else{
-                                           return(build_markov_model(t+1))
+                                           return(build_markov_model(t))
                                          }
                                        }
                                      }), accumulate = TRUE),
@@ -135,10 +135,10 @@ MT_sc <- sapply(Reduce("%*%", lapply(-1:(n_tsteps-1),
                                          if (t==0){
                                            return(build_markov_model(1))
                                          }else{
-                                           return(build_markov_model(t+1))
+                                           return(build_markov_model(t))
                                          }
                                        }
-                                       }), accumulate = TRUE),
+                                     }), accumulate = TRUE),
                 FUN = function(A){
                   P0_sc %*% A
                 }
@@ -178,7 +178,7 @@ ICER_disc_hs <- ((dt_pc_cost + sum(MC_costs_pc$discounted_halfstep)) - (dt_sc_co
   print("")
   print("With discounting:")
   print(paste("Mean cost under PC = ",
-        (dt_pc_cost + sum(MC_costs_pc$discounted_cost))))
+              (dt_pc_cost + sum(MC_costs_pc$discounted_cost))))
   print(paste("Mean cost under SC = ",
               (dt_sc_cost + sum(MC_costs_sc$discounted_cost))))
   print(paste("Mean utility under PC = ",
@@ -186,7 +186,7 @@ ICER_disc_hs <- ((dt_pc_cost + sum(MC_costs_pc$discounted_halfstep)) - (dt_sc_co
   print(paste("Mean utility under SC = ",
               (dt_sc_util + sum(utility_sc$discounted_utility))))
   print(paste("Estimated incremental cost is",
-        (dt_pc_cost + sum(MC_costs_pc$discounted_cost)) - (dt_sc_cost + sum(MC_costs_sc$discounted_cost))))
+              (dt_pc_cost + sum(MC_costs_pc$discounted_cost)) - (dt_sc_cost + sum(MC_costs_sc$discounted_cost))))
   print(paste("Estimated incremental utility is",
               (dt_pc_util + sum(utility_pc$discounted_utility)) -
                 (dt_sc_util + sum(utility_sc$discounted_utility))))

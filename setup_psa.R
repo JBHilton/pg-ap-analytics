@@ -12,9 +12,12 @@ UNIQUE_NO_LOF_PROBS <- TRUE
 # to death given death occurs within a given year.
 AVE_TIME_TO_EVENT <- 0.5
 
-SAVE_CIS <- FALSE
+CASE <- "STEMI"
 
-SAVE_FILEPATH <- ""
+SAVE_OUTPUTS <- FALSE
+
+n_sample <- 1e2
+SAVE_FILEPATH <- paste("stemi_n_", n_sample, sep="")
 
 library("data.table")
 library("dplyr")
@@ -191,13 +194,27 @@ n_tsteps <- time_hor - 1
 example_results <- run_PSA_arm_comparison(parameters_STEMI,
                                           draw_df)
 
-n_sample <- 1000
+# Check what happens when we do arm comparison with baseline parameters
+det_df <- uncertainty_df %>%
+  mutate(draw = Value)
+det_results <- run_PSA_arm_comparison(parameters_STEMI,
+                                      det_df)
+sc_comparison <- det_results[[2]] %>%
+  filter(arm == "SC") %>%
+  select(-c(arm, ratio_udc, ratio_dc, ratio_udc_hs, ratio_dc_hs))
+pc_comparison <- det_results[[2]] %>%
+  filter(arm == "PC") %>%
+  select(-c(arm, ratio_udc, ratio_dc, ratio_udc_hs, ratio_dc_hs))
+inc_comparison <- det_results[[2]] %>%
+  filter(arm == "Increment") %>%
+  select(-c(arm, ratio_udc, ratio_dc, ratio_udc_hs, ratio_dc_hs))
+
 start_time <- Sys.time()
 multi_results <- lapply(1:n_sample,
                         FUN = function(i){
                           draw_i <- do_PSA_draw(uncertainty_df)
                           res_i <- run_PSA_arm_comparison(parameters_STEMI,
-                                                                    draw_i) %>%
+                                                                    draw_i)[[1]] %>%
                             mutate(sample_id = as.character(i))
                           return(res_i)
                         }) %>%
@@ -248,14 +265,14 @@ ce_plane_plot_with_lines <- ggplot(multi_results[1:n_sample, ],
   scale_color_manual(labels = c("£20,000",
                                 "£30,000"),
                      values = c("orange",
-                                "green"))
+                                "green")) +
   labs(x = "Incremental utility (QALY's)",
        y = "Incremental cost (£)",
        color = "Cost-effectiveness threshold")
 
 # Add indicator for whether ICER passes threshold for each sample
 ce_threshold = seq(from = 0.,
-                   to = 18000.,
+                   to = 30000.,
                    by = 500.)
 for (i in 1:length(ce_threshold)){
   varname <- paste("ce_threshold_", ce_threshold[[i]])
@@ -282,7 +299,7 @@ ce_thresh_df <- data.frame(ce_threshold = ce_threshold) %>%
                               multi_results$icer[1:n_sample]))
 
 # Add bootstrap samples:
-n_bootstrap <- 100
+n_bootstrap <- 1000
 for (i in 1:n_bootstrap){
   varname <- paste("bootstrap_sample", i)
   sample_ids <- sample(1:n_sample,
@@ -301,6 +318,12 @@ ce_thresh_df$lower_95 = rowQuantiles(as.matrix(ce_thresh_df[, -c(1, 2)]),
 ce_thresh_df$upper_95 = rowQuantiles(as.matrix(ce_thresh_df[, -c(1, 2)]),
                                      probs = 0.975)
 ce_thresh_df <- ce_thresh_df[, -which(grepl("bootstrap", colnames(ce_thresh_df)))]
+if (SAVE_OUTPUTS){
+  fwrite(ce_thresh_df,
+         file = paste(SAVE_FILEPATH,
+                      "_acceptance_probability.csv",
+                      sep=""))
+}
 
 ce_thresh_plot <- ggplot(ce_thresh_df,
                          aes(x = ce_threshold,
@@ -317,20 +340,155 @@ ce_thresh_plot <- ggplot(ce_thresh_df,
   ylab("Cost-effectiveness probability")
 
 
-ci_df <- data.frame(cost_mean = mean(multi_results$inc_cost_dc_hs[1:n_sample]),
-                    cost_L = quantile(multi_results$inc_cost_dc_hs[1:n_sample], .025),
-                    cost_U = quantile(multi_results$inc_cost_dc_hs[1:n_sample], .975),
-                    util_mean = mean(multi_results$inc_util_dc_hs[1:n_sample]),
-                    util_L = quantile(multi_results$inc_util_dc_hs[1:n_sample], .025),
-                    util_U = quantile(multi_results$inc_util_dc_hs[1:n_sample], .975),
+ci_df <- data.frame(lifeyears_sc_mean = mean(multi_results$life_years_sc[1:n_sample]),
+                    lifeyears_sc_L = quantile(multi_results$life_years_sc[1:n_sample], .025),
+                    lifeyears_sc_U = quantile(multi_results$life_years_sc[1:n_sample], .975),
+                    cost_udc_sc_mean = mean(multi_results$sc_cost_udc_hs[1:n_sample]),
+                    cost_udc_sc_L = quantile(multi_results$sc_cost_udc_hs[1:n_sample], .025),
+                    cost_udc_sc_U = quantile(multi_results$sc_cost_udc_hs[1:n_sample], .975),
+                    util_udc_sc_mean = mean(multi_results$sc_util_udc_hs[1:n_sample]),
+                    util_udc_sc_L = quantile(multi_results$sc_util_udc_hs[1:n_sample], .025),
+                    util_udc_sc_U = quantile(multi_results$sc_util_udc_hs[1:n_sample], .975),
+                    cost_sc_mean = mean(multi_results$sc_cost_dc_hs[1:n_sample]),
+                    cost_sc_L = quantile(multi_results$sc_cost_dc_hs[1:n_sample], .025),
+                    cost_sc_U = quantile(multi_results$sc_cost_dc_hs[1:n_sample], .975),
+                    util_sc_mean = mean(multi_results$sc_util_dc_hs[1:n_sample]),
+                    util_sc_L = quantile(multi_results$sc_util_dc_hs[1:n_sample], .025),
+                    util_sc_U = quantile(multi_results$sc_util_dc_hs[1:n_sample], .975),
+                    nmb_sc_mean = mean(multi_results$sc_nmb[1:n_sample]),
+                    nmb_sc_L = quantile(multi_results$sc_nmb[1:n_sample], .025),
+                    nmb_sc_U = quantile(multi_results$sc_nmb[1:n_sample], .975),
+                    lifeyears_pc_mean = mean(multi_results$life_years_pc[1:n_sample]),
+                    lifeyears_pc_L = quantile(multi_results$life_years_pc[1:n_sample], .025),
+                    lifeyears_pc_U = quantile(multi_results$life_years_pc[1:n_sample], .975),
+                    cost_udc_pc_mean = mean(multi_results$pc_cost_udc_hs[1:n_sample]),
+                    cost_udc_pc_L = quantile(multi_results$pc_cost_udc_hs[1:n_sample], .025),
+                    cost_udc_pc_U = quantile(multi_results$pc_cost_udc_hs[1:n_sample], .975),
+                    util_udc_pc_mean = mean(multi_results$pc_util_udc_hs[1:n_sample]),
+                    util_udc_pc_L = quantile(multi_results$pc_util_udc_hs[1:n_sample], .025),
+                    util_udc_pc_U = quantile(multi_results$pc_util_udc_hs[1:n_sample], .975),
+                    cost_pc_mean = mean(multi_results$pc_cost_dc_hs[1:n_sample]),
+                    cost_pc_L = quantile(multi_results$pc_cost_dc_hs[1:n_sample], .025),
+                    cost_pc_U = quantile(multi_results$pc_cost_dc_hs[1:n_sample], .975),
+                    util_pc_mean = mean(multi_results$pc_util_dc_hs[1:n_sample]),
+                    util_pc_L = quantile(multi_results$pc_util_dc_hs[1:n_sample], .025),
+                    util_pc_U = quantile(multi_results$pc_util_dc_hs[1:n_sample], .975),
+                    nmb_pc_mean = mean(multi_results$pc_nmb[1:n_sample]),
+                    nmb_pc_L = quantile(multi_results$pc_nmb[1:n_sample], .025),
+                    nmb_pc_U = quantile(multi_results$pc_nmb[1:n_sample], .975),
+                    lifeyears_inc_mean = mean(multi_results$life_years_inc[1:n_sample]),
+                    lifeyears_inc_L = quantile(multi_results$life_years_inc[1:n_sample], .025),
+                    lifeyears_inc_U = quantile(multi_results$life_years_inc[1:n_sample], .975),
+                    cost_udc_inc_mean = mean(multi_results$inc_cost_udc_hs[1:n_sample]),
+                    cost_udc_inc_L = quantile(multi_results$inc_cost_udc_hs[1:n_sample], .025),
+                    cost_udc_inc_U = quantile(multi_results$inc_cost_udc_hs[1:n_sample], .975),
+                    util_udc_inc_mean = mean(multi_results$inc_util_udc_hs[1:n_sample]),
+                    util_udc_inc_L = quantile(multi_results$inc_util_udc_hs[1:n_sample], .025),
+                    util_udc_inc_U = quantile(multi_results$inc_util_udc_hs[1:n_sample], .975),
+                    cost_inc_mean = mean(multi_results$inc_cost_dc_hs[1:n_sample]),
+                    cost_inc_L = quantile(multi_results$inc_cost_dc_hs[1:n_sample], .025),
+                    cost_inc_U = quantile(multi_results$inc_cost_dc_hs[1:n_sample], .975),
+                    util_inc_mean = mean(multi_results$inc_util_dc_hs[1:n_sample]),
+                    util_inc_L = quantile(multi_results$inc_util_dc_hs[1:n_sample], .025),
+                    util_inc_U = quantile(multi_results$inc_util_dc_hs[1:n_sample], .975),
+                    nmb_inc_mean = mean(multi_results$inc_nmb[1:n_sample]),
+                    nmb_inc_L = quantile(multi_results$inc_nmb[1:n_sample], .025),
+                    nmb_inc_U = quantile(multi_results$inc_nmb[1:n_sample], .975),
                     icer_mean = mean(multi_results$icer[1:n_sample]),
                     icer_L = quantile(multi_results$icer[1:n_sample], .025),
                     icer_U = quantile(multi_results$icer[1:n_sample], .975),
                     row.names = ""
 )
 
-if (SAVE_CIS){
-  fwrite(ci_df,
+sc_cols <- colnames(ci_df) %>% grep(pattern = "sc", value = TRUE)
+pc_cols <- colnames(ci_df) %>% grep(pattern = "pc", value = TRUE)
+inc_cols <- colnames(ci_df) %>% grep(pattern = "inc", value = TRUE)
+icer_cols <- colnames(ci_df) %>% grep(pattern = "icer", value = TRUE)
+
+mean_cols <- colnames(ci_df) %>%
+  grep(pattern = "mean", value = TRUE) %>%
+  sub(pattern = "sc_|pc_|inc_",
+      replace = "") %>%
+  unique()
+L_cols <- colnames(ci_df) %>%
+  grep(pattern = "_L", value = TRUE) %>%
+  sub(pattern = "sc_|pc_|inc_",
+      replace = "") %>%
+  unique()
+U_cols <- colnames(ci_df) %>%
+  grep(pattern = "_U", value = TRUE) %>%
+  sub(pattern = "sc_|pc_|inc_",
+      replace = "") %>%
+  unique()
+
+base_cols <- sub("_mean",
+                 "",
+                 mean_cols)
+
+output_df <- ci_df %>%
+  select(-all_of(icer_cols)) %>%
+  pivot_longer(cols = all_of(sc_cols),
+               values_to = "sc",
+               names_to = "sc_names") %>%
+  pivot_longer(cols = all_of(pc_cols),
+               values_to = "pc",
+               names_to = "pc_names") %>%
+  pivot_longer(cols = all_of(inc_cols),
+               values_to = "inc",
+               names_to = "inc_names") %>%
+  mutate(sc_names = sub("sc_", "", sc_names),
+         pc_names = sub("pc_", "", pc_names),
+         inc_names = sub("inc_", "", inc_names)) %>%
+  filter((sc_names==pc_names) & (sc_names==inc_names)) %>%
+  relocate(output_name = sc_names) %>%
+  select(-c(pc_names, inc_names)) %>%
+  mutate(sc_mean = ifelse(output_name %in% mean_cols,
+                          sc,
+                          NA),
+         sc_L = ifelse(output_name %in% L_cols,
+                          sc,
+                          NA),
+         sc_U = ifelse(output_name %in% U_cols,
+                          sc,
+                          NA),
+         pc_mean = ifelse(output_name %in% mean_cols,
+                          pc,
+                          NA),
+         pc_L = ifelse(output_name %in% L_cols,
+                       pc,
+                       NA),
+         pc_U = ifelse(output_name %in% U_cols,
+                       pc,
+                       NA),
+         inc_mean = ifelse(output_name %in% mean_cols,
+                          inc,
+                          NA),
+         inc_L = ifelse(output_name %in% L_cols,
+                       inc,
+                       NA),
+         inc_U = ifelse(output_name %in% U_cols,
+                       inc,
+                       NA)) %>%
+  select(-c(sc, pc, inc)) %>%
+  mutate(output_name = sub("_mean|_L|_U",
+                          "",
+                          output_name)) %>%
+  as.list() %>%
+  lapply(FUN = function(x){unique(x[!is.na(x)])}) %>%
+  as.data.frame() %>%
+  add_row(output_name = "icer",
+          sc_mean = NA,
+          sc_L = NA,
+          sc_U = NA,
+          pc_mean = NA,
+          pc_L = NA,
+          pc_U = NA,
+          inc_mean = ci_df$icer_mean,
+          inc_L = ci_df$icer_L,
+          inc_U = ci_df$icer_U)
+
+if (SAVE_OUTPUTS){
+  fwrite(output_df,
          file = paste(SAVE_FILEPATH,
                       "_psa_stats.csv",
                       sep = ""))

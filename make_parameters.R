@@ -348,10 +348,10 @@ event_utilities <- event_utilities %>%
             which(event_utilities$variable.name=="u_dec_dyspnoea")]) %>%
   add_row(variable.name = "major_bleed",
           value = 1 - event_utilities$value[
-            which(event_utilities$variable.name=="dec_major_bleed")]) %>%
+            which(event_utilities$variable.name=="dec_major_bleed_*_(duration_major_bleed/365)")]) %>%
   add_row(variable.name = "minor_bleed",
           value = 1 - event_utilities$value[
-            which(event_utilities$variable.name=="dec_minor_bleed")]) %>%
+            which(event_utilities$variable.name=="dec_minor_bleed_*_(duration_minor_bleed/365)")]) %>%
   filter(!grepl("dec_", variable.name))
 
 # Similar formula to get costs for DT model:
