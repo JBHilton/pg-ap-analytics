@@ -34,7 +34,7 @@ AVE_TIME_TO_EVENT <- 0.5
 
 # Set to true to save the results of the arm comparison as a .csv file. The file
 # path can be set on the following line:
-SAVE_ARM_COMPARISON <- FALSE
+SAVE_ARM_COMPARISON <- TRUE
 SAVE_FILEPATH <- ""
 
 library("data.table")
@@ -213,6 +213,9 @@ ICER_disc_hs <- ((dt_pc_cost + sum(MC_costs_pc$discounted_halfstep)) - (dt_sc_co
 
 # Create a dataframe storing outputs by case:
 arm_comparison <- data.frame(arm = c("SC", "PC", "Increment"),
+                             life_years = c(life_years_sc,
+                                            life_years_pc,
+                                            life_years_pc - life_years_sc),
                              utility_udc = c(dt_sc_util + sum(utility_sc$undiscounted_utility),
                                              dt_pc_util + sum(utility_pc$undiscounted_utility),
                                              (dt_pc_util + sum(utility_pc$undiscounted_utility)) -
@@ -256,7 +259,15 @@ arm_comparison <- data.frame(arm = c("SC", "PC", "Increment"),
                                               (dt_sc_cost + sum(MC_costs_sc$discounted_halfstep))),
                              ratio_dc_hs = c(NA,
                                              NA,
-                                             ICER_disc_hs))
+                                             ICER_disc_hs),
+                             nmb_per_capita = 20000 * c(dt_sc_util + sum(utility_sc$discounted_halfstep),
+                                                dt_pc_util + sum(utility_pc$discounted_halfstep),
+                                                (dt_pc_util + sum(utility_pc$discounted_halfstep)) -
+                                                  (dt_sc_util + sum(utility_sc$discounted_halfstep))) -
+                               c(dt_sc_cost + sum(MC_costs_sc$discounted_halfstep),
+                                 dt_pc_cost + sum(MC_costs_pc$discounted_halfstep),
+                                 (dt_pc_cost + sum(MC_costs_pc$discounted_halfstep)) -
+                                   (dt_sc_cost + sum(MC_costs_sc$discounted_halfstep))))
 
 if (SAVE_ARM_COMPARISON){
   fwrite(arm_comparison,
