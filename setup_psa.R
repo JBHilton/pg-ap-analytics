@@ -14,9 +14,9 @@ AVE_TIME_TO_EVENT <- 0.5
 
 CASE <- "STEMI"
 
-SAVE_OUTPUTS <- FALSE
+SAVE_OUTPUTS <- TRUE
 
-n_sample <- 1e2
+n_sample <- 1e5
 SAVE_FILEPATH <- paste("stemi_n_", n_sample, sep="")
 
 library("data.table")

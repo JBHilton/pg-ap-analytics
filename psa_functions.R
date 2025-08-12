@@ -1017,12 +1017,7 @@ run_PSA_arm_comparison <- function(par_df,
                     sum(dt_results_pc$prob[dt_results_pc$event == event])}
   )
   
-  markov_update <- function(p, t){
-    print(t)
-    p <- p %*% (build_markov_model(t))
-    print(p)
-    return(p)
-  }
+  
   MT_pc <- sapply(Reduce("%*%", lapply(-1:(n_tsteps-1),
                                        FUN = function(t){
                                          if (t==-1){
@@ -1031,7 +1026,7 @@ run_PSA_arm_comparison <- function(par_df,
                                            if (t==0){
                                              return(build_markov_model(1))
                                            }else{
-                                             return(build_markov_model(t))
+                                             return(build_markov_model(t+1))
                                            }
                                          }
                                        }), accumulate = TRUE),
@@ -1054,7 +1049,8 @@ run_PSA_arm_comparison <- function(par_df,
   
   
   # Mean life years:
-  life_years_pc <- sum(1 - 0.5 * (MT_pc$death[1:39] + (MT_pc$death[2:40])))
+  life_years_pc <- sum(1 - c(MT_pc$death[1],
+                             0.5 * (MT_pc$death[2:39] + MT_pc$death[3:40])))
   
   # Now do sc
   
@@ -1082,7 +1078,7 @@ run_PSA_arm_comparison <- function(par_df,
                                            if (t==0){
                                              return(build_markov_model(1))
                                            }else{
-                                             return(build_markov_model(t))
+                                             return(build_markov_model(t+1))
                                            }
                                          }
                                        }), accumulate = TRUE),
@@ -1106,7 +1102,8 @@ run_PSA_arm_comparison <- function(par_df,
                                          markov_costs)
   
   # Mean life years:
-  life_years_sc <- sum(1 - 0.5 * (MT_sc$death[1:39] + (MT_sc$death[2:40])))
+  life_years_sc <- sum(1 - c(MT_sc$death[1],
+                             0.5 * (MT_sc$death[2:39] + MT_sc$death[3:40])))
   
   # Now calculate ICER
   ICER_undisc <- ((dt_pc_cost + sum(MC_costs_pc$undiscounted_cost)) - (dt_sc_cost + sum(MC_costs_sc$undiscounted_cost))) /
