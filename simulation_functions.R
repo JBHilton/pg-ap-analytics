@@ -647,3 +647,108 @@ run_arm_comparison <- function(
   
   return(arm_comparison)
 }
+
+# Extra function for returning number of bleed events
+get_bleed_counts <- function(subpop_id,
+                             test){
+  
+  subpop_pars <- prob_df[grepl(paste(subpop_id, "$", sep=""), # Gather subpopulation-specific parameters
+                               prob_df$variable.name),] %>%
+    mutate(variable.name = variable.name %>% str_replace_all(paste("_", subpop_id, sep=""), ""))
+  
+  # Get probabilities of each event from dataframe:
+  minor_bleed_prob <- subpop_pars$value[
+    grep("minor_bleed", subpop_pars$variable.name)]
+  major_bleed_prob <- subpop_pars$value[
+    grep("major_bleed", subpop_pars$variable.name)]
+  
+  bleed_df <- data.frame(subpop = subpop_id,
+                         minor_bleed = minor_bleed_prob,
+                         major_bleed = major_bleed_prob)
+  return(bleed_df)
+}
+
+bleeds_by_subpop_sc <- lapply(subpop_names,
+                              get_bleed_counts,
+                              "sc") %>%
+  bind_rows()
+bleeds_by_subpop_pc <- lapply(subpop_names,
+                              get_bleed_counts,
+                              "pc") %>%
+  bind_rows
+
+aggregate_bleed_results <- function(test = "sc",
+                                    sc_props = c(p_ac_sc,
+                                     p_at_sc,
+                                     p_ap_sc)){
+  patient_status <- data.frame(subpop = subpop_names,
+                               prob = rep(1, length(subpop_names)))
+  
+  # Always need to calculate standard care results as all routes have a chance
+  # of going to it
+  sc_results_lof <- implement_sc("lof", sc_props)
+  sc_results_no_lof <- implement_sc("no_lof", sc_props)
+  
+  if (test == "sc"){
+    patient_status$prob <- patient_status$prob *
+      (lof_prev * sc_results_lof$prob +
+         (1 - lof_prev) * sc_results_no_lof$prob)
+  }
+  
+  # Only need results of subroutine A if we actually do testing. Also decide
+  # here which version of B_result_list to use
+  if((test == "pc") | (test == "l")){
+    
+    # Assign performance metrics for relevant test
+    if (test == "pc"){
+      sens <- pc_sens
+      spec <- pc_spec
+      test_uptake <- pc_uptake
+    }
+    if (test == "l"){
+      sens <- l_sens
+      spec <- l_spec
+      test_uptake <- l_uptake
+    }
+    A_results_lof_lof <- implement_A(true_genotype = "lof",
+                                     test_result = "lof")
+    A_results_lof_no_lof <- implement_A(true_genotype = "lof",
+                                        test_result = "no_lof")
+    A_results_no_lof_lof <- implement_A(true_genotype = "no_lof",
+                                        test_result = "lof")
+    A_results_no_lof_no_lof <- implement_A(true_genotype = "no_lof",
+                                           test_result = "no_lof")
+    
+    # Take weighted average of these based on expected frequency of genotype-
+    # test result combinations. This ignores any potential variance which would
+    # need to be incorporated into a fully stochastic model.
+    A_results_ave <- data.frame(subpop = A_results_lof_lof$subpop,
+                                prob = rep(1, length(subpop_names) + 1))
+    A_results_ave$prob <- lof_prev * spec * A_results_lof_lof$prob + # True positive
+      lof_prev * (1 - spec) * A_results_lof_no_lof$prob + # False negative
+      (1 - lof_prev) * (1 - sens) * A_results_no_lof_lof$prob + # False positive
+      (1 - lof_prev) * sens * A_results_no_lof_no_lof$prob # True negative
+    
+    # Probability of going into standard care is probability of not testing plus
+    # probability of testing and then ignoring. Note that this is a bit messy
+    # because test uptake is currently implemented outside of the A subroutine
+    # but whether the clinician follows the test is implemented within it.
+    prob_sc <- (1 - test_uptake) + test_uptake * A_results_ave$prob[5]
+    
+    # Now add results to patient status
+    patient_status$prob <- test_uptake *
+      patient_status$prob *
+      A_results_ave$prob[1:4]  +
+      prob_sc * (lof_prev * sc_results_lof$prob + # This adds possibility of reverting to standard care
+                   (1 - lof_prev) * sc_results_no_lof$prob)
+    bleeds_by_subpop <- bleeds_by_subpop_pc
+  }else{
+    # If we aren't testing we use the standard care version of B results
+    bleeds_by_subpop <- bleeds_by_subpop_sc
+  }
+  
+  bleed_df <- data.frame(minor = sum(bleeds_by_subpop$minor * patient_status$prob),
+                         major = sum(bleeds_by_subpop$major * patient_status$prob))
+  
+  return(bleed_df)
+}

@@ -500,3 +500,63 @@ if (SAVE_OUTPUTS){
                       "_psa_stats.csv",
                       sep = ""))
 }
+
+# Now do same for event counts
+
+event_df <- data.frame(mi_dt_sc_mean = mean(multi_results$mi_dt_sc[1:n_sample]),
+                       mi_dt_sc_L = quantile(multi_results$mi_dt_sc[1:n_sample], .025),
+                       mi_dt_sc_U = quantile(multi_results$mi_dt_sc[1:n_sample], .975),
+                       mi_mc_sc_mean = mean(multi_results$mi_mc_sc[1:n_sample]),
+                       mi_mc_sc_L = quantile(multi_results$mi_mc_sc[1:n_sample], .025),
+                       mi_mc_sc_U = quantile(multi_results$mi_mc_sc[1:n_sample], .975),
+                       stroke_dt_sc_mean = mean(multi_results$stroke_dt_sc[1:n_sample]),
+                       stroke_dt_sc_L = quantile(multi_results$stroke_dt_sc[1:n_sample], .025),
+                       stroke_dt_sc_U = quantile(multi_results$stroke_dt_sc[1:n_sample], .975),
+                       stroke_mc_sc_mean = mean(multi_results$stroke_mc_sc[1:n_sample]),
+                       stroke_mc_sc_L = quantile(multi_results$stroke_mc_sc[1:n_sample], .025),
+                       stroke_mc_sc_U = quantile(multi_results$stroke_mc_sc[1:n_sample], .975),
+                       major_bleed_dt_sc_mean = mean(multi_results$major_bleed_dt_sc[1:n_sample]),
+                       major_bleed_dt_sc_L = quantile(multi_results$major_bleed_dt_sc[1:n_sample], .025),
+                       major_bleed_dt_sc_U = quantile(multi_results$major_bleed_dt_sc[1:n_sample], .975),
+                       minor_bleed_dt_sc_mean = mean(multi_results$minor_bleed_dt_sc[1:n_sample]),
+                       minor_bleed_dt_sc_L = quantile(multi_results$minor_bleed_dt_sc[1:n_sample], .025),
+                       minor_bleed_dt_sc_U = quantile(multi_results$minor_bleed_dt_sc[1:n_sample], .975),
+                       death_dt_sc_mean = mean(multi_results$death_dt_sc[1:n_sample]),
+                       death_dt_sc_L = quantile(multi_results$death_dt_sc[1:n_sample], .025),
+                       death_dt_sc_U = quantile(multi_results$death_dt_sc[1:n_sample], .975),
+                       death_mc_sc_mean = mean(multi_results$death_mc_sc[1:n_sample]),
+                       death_mc_sc_L = quantile(multi_results$death_mc_sc[1:n_sample], .025),
+                       death_mc_sc_U = quantile(multi_results$death_mc_sc[1:n_sample], .975),
+                       mi_dt_pc_mean = mean(multi_results$mi_dt_pc[1:n_sample]),
+                       mi_dt_pc_L = quantile(multi_results$mi_dt_pc[1:n_sample], .025),
+                       mi_dt_pc_U = quantile(multi_results$mi_dt_pc[1:n_sample], .975),
+                       mi_mc_pc_mean = mean(multi_results$mi_mc_pc[1:n_sample]),
+                       mi_mc_pc_L = quantile(multi_results$mi_mc_pc[1:n_sample], .025),
+                       mi_mc_pc_U = quantile(multi_results$mi_mc_pc[1:n_sample], .975),
+                       stroke_dt_pc_mean = mean(multi_results$stroke_dt_pc[1:n_sample]),
+                       stroke_dt_pc_L = quantile(multi_results$stroke_dt_pc[1:n_sample], .025),
+                       stroke_dt_pc_U = quantile(multi_results$stroke_dt_pc[1:n_sample], .975),
+                       stroke_mc_pc_mean = mean(multi_results$stroke_mc_pc[1:n_sample]),
+                       stroke_mc_pc_L = quantile(multi_results$stroke_mc_pc[1:n_sample], .025),
+                       stroke_mc_pc_U = quantile(multi_results$stroke_mc_pc[1:n_sample], .975),
+                       major_bleed_dt_pc_mean = mean(multi_results$major_bleed_dt_pc[1:n_sample]),
+                       major_bleed_dt_pc_L = quantile(multi_results$major_bleed_dt_pc[1:n_sample], .025),
+                       major_bleed_dt_pc_U = quantile(multi_results$major_bleed_dt_pc[1:n_sample], .975),
+                       minor_bleed_dt_pc_mean = mean(multi_results$minor_bleed_dt_pc[1:n_sample]),
+                       minor_bleed_dt_pc_L = quantile(multi_results$minor_bleed_dt_pc[1:n_sample], .025),
+                       minor_bleed_dt_pc_U = quantile(multi_results$minor_bleed_dt_pc[1:n_sample], .975),
+                       death_dt_pc_mean = mean(multi_results$death_dt_pc[1:n_sample]),
+                       death_dt_pc_L = quantile(multi_results$death_dt_pc[1:n_sample], .025),
+                       death_dt_pc_U = quantile(multi_results$death_dt_pc[1:n_sample], .975),
+                       death_mc_pc_mean = mean(multi_results$death_mc_pc[1:n_sample]),
+                       death_mc_pc_L = quantile(multi_results$death_mc_pc[1:n_sample], .025),
+                       death_mc_pc_U = quantile(multi_results$death_mc_pc[1:n_sample], .975),
+                       row.names = ""
+)
+
+if (SAVE_OUTPUTS){
+  fwrite(event_df,
+         file = paste(SAVE_FILEPATH,
+                      "_event_stats.csv",
+                      sep = ""))
+}

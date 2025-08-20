@@ -261,6 +261,35 @@ if (SAVE_ARM_COMPARISON){
                       sep = ""))
 }
 
+bleed_results_sc <- aggregate_bleed_results("sc")
+bleed_results_pc <- aggregate_bleed_results("pc")
+
+# Count events per 1000:
+events_df <- data.frame(arm = c("sc",
+                                "pc"),
+                        mi_dt = 1000 * c(sum(dt_results_sc$prob[grepl("mi", dt_results_sc$event)]),
+                                         sum(dt_results_pc$prob[grepl("mi", dt_results_pc$event)])),
+                        mi_mc = 1000 * c(sum(MT_sc$mi),
+                                         sum(MT_pc$mi)),
+                        stroke_dt = 1000 * c(sum(dt_results_sc$prob[grepl("stroke", dt_results_sc$event)]),
+                                             sum(dt_results_pc$prob[grepl("stroke", dt_results_pc$event)])),
+                        stroke_mc = 1000 * c(sum(MT_sc$stroke),
+                                             sum(MT_pc$stroke)),
+                        major_bleed_dt = 1000 * c(bleed_results_sc$major,
+                                                  bleed_results_pc$major),
+                        minor_bleed_dt = 1000 * c(bleed_results_sc$minor,
+                                                  bleed_results_pc$minor),
+                        death_dt = 1000 * c(sum(dt_results_sc$prob[grepl("death", dt_results_sc$event)]),
+                                            sum(dt_results_pc$prob[grepl("death", dt_results_pc$event)])),
+                        death_mc = 1000 * c(sum(MT_sc$death),
+                                            sum(MT_pc$death)))
+if (SAVE_ARM_COMPARISON){
+  fwrite(events_df,
+         file = paste(SAVE_FILEPATH,
+                      "event_counts.csv",
+                      sep = ""))
+}
+
 #### Further exploration of decision tree results ####
 {
 print("Decision tree results:")
