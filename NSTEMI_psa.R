@@ -220,9 +220,13 @@ start_time <- Sys.time()
 multi_results <- lapply(1:n_sample,
                         FUN = function(i){
                           draw_i <- do_PSA_draw(uncertainty_df)
-                          res_i <- run_PSA_arm_comparison(parameters_STEMI,
-                                                                    draw_i)[[1]] %>%
-                            mutate(sample_id = as.character(i))
+                          psa_results <- run_PSA_arm_comparison(parameters_STEMI,
+                                                                draw_i)
+                          res_i <- psa_results[[1]] %>%
+                            mutate(sample_id = as.character(i)) %>%
+                            cbind(psa_results[[3]] %>% # Attach event counts
+                                    pivot_wider(names_from = arm, 
+                                                values_from = c(-arm)))
                           return(res_i)
                         }) %>%
   bind_rows() %>%

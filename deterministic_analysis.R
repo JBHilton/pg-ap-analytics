@@ -277,12 +277,12 @@ events_df <- data.frame(arm = c("sc",
                                          sum(MT_pc$stroke)),
                         major_bleed_dt = 1000 * c(bleed_results_sc$major,
                                                   bleed_results_pc$major),
-                        minor_bleed_mc = 1000 * c(bleed_results_sc$minor,
+                        minor_bleed_dt = 1000 * c(bleed_results_sc$minor,
                                                   bleed_results_pc$minor),
                         death_dt = 1000 * c(sum(dt_results_sc$prob[grepl("death", dt_results_sc$event)]),
                                          sum(dt_results_pc$prob[grepl("death", dt_results_pc$event)])),
-                        death_mc = 1000 * c(sum(MT_sc$death),
-                                         sum(MT_pc$death)))
+                        death_mc = 1000 * c(MT_sc$death[nrow(MT_sc)],
+                                            MT_pc$death[nrow(MT_pc)]))
 if (SAVE_ARM_COMPARISON){
   fwrite(events_df,
          file = paste(SAVE_FILEPATH,
