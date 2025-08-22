@@ -236,7 +236,9 @@ rewrite_pars_from_draw <- function(par_df, draw_df){
 # Simulation function carrying out a two-arm comparison given a parameter
 # dataframe
 run_PSA_arm_comparison <- function(par_df,
-                                   draw_df){
+                                   draw_df,
+                                   pop = "STEMI",
+                                   scenario = ""){
   rewrite_list <- rewrite_pars_from_draw(par_df,
                                          draw_df)
   par_df <- rewrite_list[[1]]
@@ -249,6 +251,28 @@ run_PSA_arm_comparison <- function(par_df,
     filter(!grepl("no_lof", variable.name)) %>%
     select(c(variable.name, value)) %>%
     mutate(odds = value/(1-value))
+  
+  # SA5: adjusted baseline risk of stroke
+  if (scenario == "SA5"){
+    if (pop == "STEMI"){
+      baseline_prob_df$value[
+        grepl("stroke", baseline_prob_df$variable.name)] <- 0.0072
+    }else{
+      baseline_prob_df$value[
+        grepl("stroke", baseline_prob_df$variable.name)] <- 0.003
+    }
+  }
+  
+  # SA6: adjusted baseline risk of reinfarction
+  if (scenario == "SA6"){
+    if (pop == "STEMI"){
+      baseline_prob_df$value[
+        grepl("mi", baseline_prob_df$variable.name)] <- 0.054
+    }else{
+      baseline_prob_df$value[
+        grepl("mi", baseline_prob_df$variable.name)] <- 0.0338
+    }
+  }
   
   # Work out Ticagrelor probabilities
   at_ratio_df <- par_df %>%
@@ -285,22 +309,55 @@ run_PSA_arm_comparison <- function(par_df,
                            ac_no_lof_ratio_df)
   
   # Set up scaling for discounting by time step
-  discount_by_cycle <- (1 / (1 + par_df$value[(
-    par_df$variable.name=="qaly_discount_rate")|
-      (par_df$variable.name=="disc_effect_b")])^seq(
-        1.0, time_hor-1, by = time_step))
+  
+  # SA12: 1.5% discount rate
+  if (scenario == "SA12"){
+    discount_by_cycle <- (1 / (1 + 0.015)^seq(
+      1.0, time_hor-1, by = time_step))
+  }else{
+    discount_by_cycle <- (1 / (1 + par_df$value[(
+      par_df$variable.name=="qaly_discount_rate")|
+        (par_df$variable.name=="disc_effect_b")])^seq(
+          1.0, time_hor-1, by = time_step))
+  }
   
   # List parameters for decision tree
-  pc_uptake <- par_df$value[par_df$variable.name=="prob_test_order"]
-  pc_test_cost <- par_df$value[par_df$variable.name=="poct_cost"]
+  
+  # SA2: full uptake
+  if (scenario == "SA2"){
+    pc_uptake = 1.
+  }else{
+    pc_uptake <- par_df$value[par_df$variable.name=="prob_test_order"]
+  }
+  
+  # SA10: Cost of POCT test doubled:
+  if (scenario == "SA11"){
+    pc_test_cost <- 250
+  }else{
+    pc_test_cost <- par_df$value[par_df$variable.name=="poct_cost"]
+  }
   pc_sens <- 1.
   pc_spec <- 1.
   
-  p_test_followed = par_df$value[par_df$variable.name=="prob_test_followed"]
+  # SA3: always follow test
+  if (scenario == "SA3"){
+    p_test_followed = 1.
+  }else{
+    p_test_followed = par_df$value[par_df$variable.name=="prob_test_followed"]
+  }
   
-  p_ac_sc <- par_df$value[par_df$variable.name=="proportion_ac_standard"] # Proportion prescriped clopidogrel under standard care
-  p_at_sc <- par_df$value[par_df$variable.name=="proportion_at_standard"]  # Proportion prescriped ticagrelor under standard care
-  p_ap_sc <- par_df$value[par_df$variable.name=="proportion_ap_standard"]  # Proportion prescriped prasugrel under standard care
+  
+  
+  # SA1: proportion of DAPT
+  if (scenario == "SA1"){
+    p_ac_sc = .1
+    p_at_sc = .45
+    p_ap_sc = .45
+  }else{
+    p_ac_sc <- par_df$value[par_df$variable.name=="proportion_ac_standard"] # Proportion prescriped clopidogrel under standard care
+    p_at_sc <- par_df$value[par_df$variable.name=="proportion_at_standard"]  # Proportion prescriped ticagrelor under standard care
+    p_ap_sc <- par_df$value[par_df$variable.name=="proportion_ap_standard"]  # Proportion prescriped prasugrel under standard care
+  }
   
   # Assign probabilities of AT and AP prescription following testing, assuming
   # same relative proportions as under standard care.
@@ -310,7 +367,13 @@ run_PSA_arm_comparison <- function(par_df,
   # Assign prevalences
   lof_prev_eu <- par_df$value[par_df$variable.name=="prevalence_lof_base_case"]
   lof_prev_as <- par_df$value[par_df$variable.name=="prevalence_lof_sensitivity"]
-  lof_prev <- lof_prev_eu
+  
+  # SA4: prevalence=56.8%
+  if (scenario == "SA4"){
+    lof_prev = lof_prev_as
+  }else{
+    lof_prev <- lof_prev_eu
+  }
   
   # Get cost_pci, baseline cost applied in all courses
   cost_pci <- par_df$value[par_df$variable.name=="cost_pci"]
@@ -427,6 +490,21 @@ run_PSA_arm_comparison <- function(par_df,
     mutate(variable.name = gsub("_tree", "", variable.name)) %>%
     mutate(variable.name = gsub("_pp", "", variable.name))
   
+  # SA8: Minor bleeding costs set to GI bleed: £893
+  if (scenario == "SA8"){
+    event_costs$value[event_costs$variable.name=="minor_bleed"] <- 893
+  }
+  
+  # SA9: Major bleeding costs (10%): £2502
+  if (scenario == "SA9"){
+    event_costs$value[event_costs$variable.name=="major_bleed"] <- 2502
+  }
+  
+  # SA10: Major bleeding costs (40%): £2843
+  if (scenario == "SA10"){
+    event_costs$value[event_costs$variable.name=="major_bleed"] <- 2843
+  }
+  
   ### Parameters for Markov cohort model ####
   
   # Get standardised mortality ratios from PSA draw
@@ -444,6 +522,13 @@ run_PSA_arm_comparison <- function(par_df,
              str_replace_all("_further",
                              "")) %>%
     spread(variable.name, Value)
+  
+  # SA7: baseline SMR for ACS/reinfarction reduced by 2-%
+  if (scenario == "SA7"){
+    smr_vals$no_event = 0.8 * smr_vals$no_event
+    smr_vals$mi = 0.8 * smr_vals$mi
+    smr_vals$post_mi = 0.8 * smr_vals$post_mi
+  }
   
   # Read in life table for healthy individuals
   mortality_prob_by_age <- mort_table %>%
