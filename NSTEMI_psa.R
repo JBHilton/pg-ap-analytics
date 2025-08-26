@@ -16,7 +16,7 @@ CASE <- "NSTEMI"
 
 SAVE_OUTPUTS <- TRUE
 
-n_sample <- 1e5
+n_sample <- 1e4
 SAVE_FILEPATH <- paste("nstemi_n_", n_sample, sep="")
 
 library("data.table")
@@ -298,7 +298,7 @@ for (i in 1:length(ce_threshold)){
 calculate_acc_prob <- function(ce_threshold,
                                utils,
                                icers){
-  length(which((icers < ce_threshold) & (which(utils > 0)))) /
+  length(which((icers < ce_threshold) & (utils > 0))) /
     n_sample
 } %>% Vectorize()
 
