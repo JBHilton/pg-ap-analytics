@@ -1262,61 +1262,61 @@ run_PSA_arm_comparison <- function(par_df,
   life_years_sc <- sum(1 - 0.5 * (MT_sc$death[1:39] + (MT_sc$death[2:40])))
   
   # Build output lists and calculate incremental values
-  sc_cost_udc <- (dt_sc_cost + sum(MC_costs_sc$undiscounted_cost))
-  sc_util_udc <- (dt_sc_util + sum(utility_sc$undiscounted_utility))
-  sc_cost_dc <- (dt_sc_cost + sum(MC_costs_sc$discounted_cost))
-  sc_util_dc <- (dt_sc_util + sum(utility_sc$discounted_utility))
-  sc_cost_udc_hs <- (dt_sc_cost + sum(MC_costs_sc$halfstep))
-  sc_util_udc_hs <- (dt_sc_util + sum(utility_sc$halfstep))
-  sc_cost_dc_hs <- (dt_sc_cost + sum(MC_costs_sc$discounted_halfstep))
-  sc_util_dc_hs <- (dt_sc_util + sum(utility_sc$discounted_halfstep))
-  sc_nmb <- 20000 * (dt_sc_util + sum(utility_sc$discounted_halfstep)) -
+  cost_udc_sc <- (dt_sc_cost + sum(MC_costs_sc$undiscounted_cost))
+  util_udc_sc <- (dt_sc_util + sum(utility_sc$undiscounted_utility))
+  cost_dc_sc <- (dt_sc_cost + sum(MC_costs_sc$discounted_cost))
+  util_dc_sc <- (dt_sc_util + sum(utility_sc$discounted_utility))
+  cost_udc_sc_hs <- (dt_sc_cost + sum(MC_costs_sc$halfstep))
+  util_udc_sc_hs <- (dt_sc_util + sum(utility_sc$halfstep))
+  cost_dc_sc_hs <- (dt_sc_cost + sum(MC_costs_sc$discounted_halfstep))
+  util_dc_sc_hs <- (dt_sc_util + sum(utility_sc$discounted_halfstep))
+  nmb_sc <- 20000 * (dt_sc_util + sum(utility_sc$discounted_halfstep)) -
     (dt_sc_cost + sum(MC_costs_sc$discounted_halfstep))
   
   
-  pc_cost_udc <- (dt_pc_cost + sum(MC_costs_pc$undiscounted_cost))
-  pc_util_udc <- (dt_pc_util + sum(utility_pc$undiscounted_utility))
-  pc_cost_dc <- (dt_pc_cost + sum(MC_costs_pc$discounted_cost))
-  pc_util_dc <- (dt_pc_util + sum(utility_pc$discounted_utility))
-  pc_cost_udc_hs <- (dt_pc_cost + sum(MC_costs_pc$halfstep))
-  pc_util_udc_hs <- (dt_pc_util + sum(utility_pc$halfstep))
-  pc_cost_dc_hs <- (dt_pc_cost + sum(MC_costs_pc$discounted_halfstep))
-  pc_util_dc_hs <- (dt_pc_util + sum(utility_pc$discounted_halfstep))
-  pc_nmb <- 20000 * (dt_pc_util + sum(utility_pc$discounted_halfstep)) -
+  cost_udc_pc <- (dt_pc_cost + sum(MC_costs_pc$undiscounted_cost))
+  util_udc_pc <- (dt_pc_util + sum(utility_pc$undiscounted_utility))
+  cost_dc_pc <- (dt_pc_cost + sum(MC_costs_pc$discounted_cost))
+  util_dc_pc <- (dt_pc_util + sum(utility_pc$discounted_utility))
+  cost_udc_pc_hs <- (dt_pc_cost + sum(MC_costs_pc$halfstep))
+  util_udc_pc_hs <- (dt_pc_util + sum(utility_pc$halfstep))
+  cost_dc_pc_hs <- (dt_pc_cost + sum(MC_costs_pc$discounted_halfstep))
+  util_dc_pc_hs <- (dt_pc_util + sum(utility_pc$discounted_halfstep))
+  nmb_pc <- 20000 * (dt_pc_util + sum(utility_pc$discounted_halfstep)) -
     (dt_pc_cost + sum(MC_costs_pc$discounted_halfstep))
   
   life_years_inc <- life_years_pc - life_years_sc
-  inc_util_udc <- pc_util_udc - sc_util_udc
-  inc_cost_udc <- pc_cost_udc - sc_cost_udc
-  inc_util_dc <- pc_util_dc - sc_util_dc
-  inc_cost_dc <- pc_cost_dc - sc_cost_dc
-  inc_util_udc_hs <- pc_util_udc_hs - sc_util_udc_hs
-  inc_cost_udc_hs <- pc_cost_udc_hs - sc_cost_udc_hs
-  inc_util_dc_hs <- pc_util_dc_hs - sc_util_dc_hs
-  inc_cost_dc_hs <- pc_cost_dc_hs - sc_cost_dc_hs
-  inc_nmb <- pc_nmb - sc_nmb
+  inc_util_udc <- util_udc_pc - util_udc_sc
+  inc_cost_udc <- cost_udc_pc - cost_udc_sc
+  inc_util_dc <- util_dc_pc - util_dc_sc
+  inc_cost_dc <- cost_dc_pc - cost_dc_sc
+  inc_util_udc_hs <- util_udc_pc_hs - util_udc_sc_hs
+  inc_cost_udc_hs <- cost_udc_pc_hs - cost_udc_sc_hs
+  inc_util_dc_hs <- util_dc_pc_hs - util_dc_sc_hs
+  inc_cost_dc_hs <- cost_dc_pc_hs - cost_dc_sc_hs
+  inc_nmb <- nmb_pc - nmb_sc
   
   # Create a one-line dataframe containing outputs under different discounting assumptions:
   outcome_df <- data.frame(life_years_sc,
-                           sc_util_udc,
-                           sc_cost_udc,
-                           sc_util_dc,
-                           sc_cost_dc,
-                           sc_util_udc_hs,
-                           sc_cost_udc_hs,
-                           sc_util_dc_hs,
-                           sc_cost_dc_hs,
-                           sc_nmb,
+                           util_udc_sc,
+                           cost_udc_sc,
+                           util_dc_sc,
+                           cost_dc_sc,
+                           util_udc_sc_hs,
+                           cost_udc_sc_hs,
+                           util_dc_sc_hs,
+                           cost_dc_sc_hs,
+                           nmb_sc,
                            life_years_pc,
-                           pc_util_udc,
-                           pc_cost_udc,
-                           pc_util_dc,
-                           pc_cost_dc,
-                           pc_util_udc_hs,
-                           pc_cost_udc_hs,
-                           pc_util_dc_hs,
-                           pc_cost_dc_hs,
-                           pc_nmb,
+                           util_udc_pc,
+                           cost_udc_pc,
+                           util_dc_pc,
+                           cost_dc_pc,
+                           util_udc_pc_hs,
+                           cost_udc_pc_hs,
+                           util_dc_pc_hs,
+                           cost_dc_pc_hs,
+                           nmb_pc,
                            life_years_inc,
                            inc_util_udc,
                            inc_cost_udc,

@@ -1,11 +1,14 @@
 # In this script we load and reformat the different bits of output data into
 # tables of base cases and confidence intervals.
 
+SAVE_OUTPUTS <- TRUE
+
+library(stringr)
 library(tidyverse)
 
 stemi_arm_comparison <- read.csv("stemi_arm_comparison.csv")
-stemi_psa <- read.csv("stemi_n_1e+05_psa_stats.csv")
-stemi_prob_ce <- read.csv("stemi_n_1e+05_acceptance_probability.csv")
+stemi_psa <- read.csv("stemi_n_10000_psa_stats.csv")
+stemi_prob_ce <- read.csv("stemi_n_10000_acceptance_probability.csv")
 nstemi_arm_comparison <- read.csv("nstemi_arm_comparison.csv")
 nstemi_psa <- read.csv("nstemi_n_1e+05_psa_stats.csv")
 nstemi_prob_ce <- read.csv("nstemi_n_1e+05_acceptance_probability.csv")
@@ -201,3 +204,356 @@ main_df <- data.frame(group = rep("STEMI",
                                             digits=5))
     )
   )
+
+if (SAVE_OUTPUTS){
+  write.csv(main_df,
+            "base_case_and_PSA.csv")
+}
+# Now load in event count results
+
+stemi_event_counts <- read.csv("stemi_event_counts.csv")
+stemi_event_psa <- read.csv("stemi_n_10000_event_stats.csv")
+nstemi_event_counts <- read.csv("nstemi_event_counts.csv")
+nstemi_event_psa <- read.csv("nstemi_n_100_event_stats.csv")
+
+arm_pos <- function(arm) ifelse(arm=="sc", 1, 2)
+
+print_stemi_events <- function(arm,
+                               output,
+                               digits=3){
+  paste(format(stemi_event_counts[arm_pos(arm), output],
+               digits = digits),
+        " (",
+        format(stemi_event_psa[1, paste(output, "_",  arm, "_L", sep="")],
+               digits = digits),
+        ", ",
+        format(stemi_event_psa[1, paste(output, "_",  arm, "_U", sep="")],
+               digits = digits),
+        ")",
+        sep="")
+}
+
+print_nstemi_events <- function(arm,
+                                output,
+                                digits=3){
+  paste(format(nstemi_event_counts[arm_pos(arm), output],
+               digits = digits),
+        " (",
+        format(nstemi_event_psa[1, paste(output, "_",  arm, "_L", sep="")],
+               digits = digits),
+        ", ",
+        format(nstemi_event_psa[1, paste(output, "_",  arm, "_U", sep="")],
+               digits = digits),
+        ")",
+        sep="")
+}
+
+events_df <- data.frame(group = rep("STEMI",
+                                  2),
+                      intervention = c("standard DAPT",
+                                       "genotype-guided DAPT"),
+                      mi_y1 = sapply(c("sc", "pc"),
+                                     print_stemi_events,
+                                     output = "mi_dt",
+                                     digits=5),
+                      mi_post_y1 = sapply(c("sc", "pc"),
+                                          print_stemi_events,
+                                          output = "mi_mc",
+                                          digits=5),
+                      stroke_y1 = sapply(c("sc", "pc"),
+                                     print_stemi_events,
+                                     output = "stroke_dt",
+                                     digits=5),
+                      stroke_post_y1 = sapply(c("sc", "pc"),
+                                          print_stemi_events,
+                                          output = "stroke_mc",
+                                          digits=5),
+                      major_bleed_y1 = sapply(c("sc", "pc"),
+                                     print_stemi_events,
+                                     output = "major_bleed_dt",
+                                     digits=5),
+                      minor_bleed_y1 = sapply(c("sc", "pc"),
+                                              print_stemi_events,
+                                              output = "minor_bleed_dt",
+                                              digits=5),
+                      death_y1 = sapply(c("sc", "pc"),
+                                              print_stemi_events,
+                                              output = "death_dt",
+                                              digits=5),
+                      death_post_y1 = sapply(c("sc", "pc"),
+                                                   print_stemi_events,
+                                                   output = "death_mc",
+                                                   digits=5)
+) %>% rbind(
+  data.frame(group = rep("NSTEMI",
+                         2),
+             intervention = c("standard DAPT",
+                              "genotype-guided DAPT"),
+             mi_y1 = sapply(c("sc", "pc"),
+                            print_nstemi_events,
+                            output = "mi_dt",
+                            digits=5),
+             mi_post_y1 = sapply(c("sc", "pc"),
+                                 print_nstemi_events,
+                                 output = "mi_mc",
+                                 digits=5),
+             stroke_y1 = sapply(c("sc", "pc"),
+                                print_nstemi_events,
+                                output = "stroke_dt",
+                                digits=5),
+             stroke_post_y1 = sapply(c("sc", "pc"),
+                                     print_nstemi_events,
+                                     output = "stroke_mc",
+                                     digits=5),
+             major_bleed_y1 = sapply(c("sc", "pc"),
+                                     print_nstemi_events,
+                                     output = "major_bleed_dt",
+                                     digits=5),
+             minor_bleed_y1 = sapply(c("sc", "pc"),
+                                     print_nstemi_events,
+                                     output = "minor_bleed_dt",
+                                     digits=5),
+             death_y1 = sapply(c("sc", "pc"),
+                               print_nstemi_events,
+                               output = "death_dt",
+                               digits=5),
+             death_post_y1 = sapply(c("sc", "pc"),
+                                    print_nstemi_events,
+                                    output = "death_mc",
+                                    digits=5)
+  )
+)
+
+if (SAVE_OUTPUTS){
+  write.csv(events_df,
+            "base_case_event_counts.csv")
+}
+
+# Now load in scenario analysis results
+
+stemi_sa_baseline <- read.csv("stemi_scenario_central_estimate.csv")
+stemi_sa_psa <- read.csv("stemi_n_100_scenario_psa_stats.csv")
+nstemi_sa_baseline <- read.csv("nstemi_scenario_central_estimate.csv")
+nstemi_sa_psa <- read.csv("nstemi_n_100_scenario_psa_stats.csv")
+
+n_stemi_scenario <- nrow(stemi_sa_baseline)
+print_stemi_scenarios <- function(arm,
+                               output,
+                               digits=3){
+  for (i in 1:n_stemi_scenario){
+    L_diff <- stemi_sa_baseline[1, paste(output, "_",  arm, sep="")] -
+      stemi_sa_psa[1, paste(output, "_",  arm, "_L", sep="")]
+    U_diff <- stemi_sa_baseline[1, paste(output, "_",  arm, sep="")] -
+      stemi_sa_psa[1, paste(output, "_",  arm, "_U", sep="")]
+    if ((L_diff<0)|(U_diff>0)){
+      print(paste("Central estimate out of bounds for",
+                  output,
+                  "in STEMI",
+                  arm,
+                  "arm."))
+    }
+  }
+  sapply(1:n_stemi_scenario,
+         FUN = function(i)
+           paste(format(stemi_sa_baseline[i, paste(output, "_",  arm, sep="")],
+                       digits = digits),
+                " (",
+                format(stemi_sa_psa[i, paste(output, "_",  arm, "_L", sep="")],
+                       digits = digits),
+                ", ",
+                format(stemi_sa_psa[i, paste(output, "_",  arm, "_U", sep="")],
+                       digits = digits),
+                ")",
+                sep="")
+  )
+    
+}
+
+n_nstemi_scenario <- nrow(nstemi_sa_baseline)
+print_nstemi_scenarios <- function(arm,
+                                  output,
+                                  digits=3){
+  for (i in 1:n_nstemi_scenario){
+    L_diff <- nstemi_sa_baseline[1, paste(output, "_",  arm, sep="")] -
+      nstemi_sa_psa[1, paste(output, "_",  arm, "_L", sep="")]
+    U_diff <- nstemi_sa_baseline[1, paste(output, "_",  arm, sep="")] -
+      nstemi_sa_psa[1, paste(output, "_",  arm, "_U", sep="")]
+    if ((L_diff<0)|(U_diff>0)){
+      print(paste("Central estimate out of bounds for",
+                  output,
+                  "in NSTEMI",
+                  arm,
+                  "arm."))
+    }
+  }
+  sapply(1:n_nstemi_scenario,
+         FUN = function(i)
+           paste(format(nstemi_sa_baseline[i, paste(output, "_",  arm, sep="")],
+                        digits = digits),
+                 " (",
+                 format(nstemi_sa_psa[i, paste(output, "_",  arm, "_L", sep="")],
+                        digits = digits),
+                 ", ",
+                 format(nstemi_sa_psa[i, paste(output, "_",  arm, "_U", sep="")],
+                        digits = digits),
+                 ")",
+                 sep="")
+  )
+  
+}
+
+all_outputs <- stemi_sa_psa %>%
+  select(contains("_sc_mean")) %>%
+  colnames() %>%
+  str_replace("_sc_mean", "") %>%
+  unique()
+
+stemi_scenario_df <- data.frame(group = rep("STEMI",
+                                    2 * n_stemi_scenario),
+                                scenario = rep(1:n_stemi_scenario, 2),
+                        intervention = c(rep("standard DAPT", n_stemi_scenario),
+                                         rep("genotype-guided DAPT", n_stemi_scenario)))
+for (output in all_outputs){
+  stemi_scenario_df <- stemi_scenario_df %>%
+    mutate("{output}" := sapply(c("sc", "pc"),
+                                print_stemi_scenarios,
+                                output = output,
+                                digits=5) %>% c())
+}
+  
+stemi_scenario_df <- stemi_scenario_df %>%
+  relocate(cost, .after = cost_udc) %>%
+  mutate(inc_cost = ifelse(intervention == "standard DAPT",
+                           NA,
+                           paste(format(stemi_sa_baseline$inc_cost[scenario],
+                                          digits = 5),
+                                   " (",
+                                   format(stemi_sa_psa$cost_inc_L[scenario],
+                                          digits = 5),
+                                   ", ",
+                                   format(stemi_sa_psa$cost_inc_U[scenario],
+                                          digits = 5),
+                                   ")",
+                                   sep="")
+  )) %>%
+  mutate(inc_util = ifelse(intervention == "standard DAPT",
+                           NA,
+                           paste(format(stemi_sa_baseline$inc_util[scenario],
+                                        digits = 5),
+                                 " (",
+                                 format(stemi_sa_psa$util_inc_L[scenario],
+                                        digits = 5),
+                                 ", ",
+                                 format(stemi_sa_psa$util_inc_U[scenario],
+                                        digits = 5),
+                                 ")",
+                                 sep="")
+  )) %>%
+  mutate(icer = ifelse(intervention == "standard DAPT",
+                          NA,
+                          paste(format(stemi_sa_baseline$icer[scenario],
+                                       digits = 5),
+                                " (",
+                                format(stemi_sa_psa$icer_L[scenario],
+                                       digits = 5),
+                                ", ",
+                                format(stemi_sa_psa$icer_U[scenario],
+                                       digits = 5),
+                                ")",
+                                sep="")
+  )) %>%
+  mutate(inc_nmb = ifelse(intervention == "standard DAPT",
+                           NA,
+                           paste(format(stemi_sa_baseline$inc_nmb[scenario],
+                                        digits = 5),
+                                 " (",
+                                 format(stemi_sa_psa$nmb_inc_L[scenario],
+                                        digits = 5),
+                                 ", ",
+                                 format(stemi_sa_psa$nmb_inc_U[scenario],
+                                        digits = 5),
+                                 ")",
+                                 sep="")
+  )) %>%
+  relocate(nmb, .before = inc_nmb) %>%
+  arrange(scenario)
+
+if (SAVE_OUTPUTS){
+  write.csv(stemi_scenario_df,
+            "stemi_scenario_psa.csv")
+}
+
+nstemi_scenario_df <- data.frame(group = rep("NSTEMI",
+                                            2 * n_nstemi_scenario),
+                                scenario = rep(1:n_nstemi_scenario, 2),
+                                intervention = c(rep("standard DAPT", n_nstemi_scenario),
+                                                 rep("genotype-guided DAPT", n_nstemi_scenario)))
+for (output in all_outputs){
+  nstemi_scenario_df <- nstemi_scenario_df %>%
+    mutate("{output}" := sapply(c("sc", "pc"),
+                                print_nstemi_scenarios,
+                                output = output,
+                                digits=5) %>% c())
+}
+
+nstemi_scenario_df <- nstemi_scenario_df %>%
+  relocate(cost, .after = cost_udc) %>%
+  mutate(inc_cost = ifelse(intervention == "standard DAPT",
+                           NA,
+                           paste(format(nstemi_sa_baseline$inc_cost[scenario],
+                                        digits = 5),
+                                 " (",
+                                 format(nstemi_sa_psa$cost_inc_L[scenario],
+                                        digits = 5),
+                                 ", ",
+                                 format(nstemi_sa_psa$cost_inc_U[scenario],
+                                        digits = 5),
+                                 ")",
+                                 sep="")
+  )) %>%
+  mutate(inc_util = ifelse(intervention == "standard DAPT",
+                           NA,
+                           paste(format(nstemi_sa_baseline$inc_util[scenario],
+                                        digits = 5),
+                                 " (",
+                                 format(nstemi_sa_psa$util_inc_L[scenario],
+                                        digits = 5),
+                                 ", ",
+                                 format(nstemi_sa_psa$util_inc_U[scenario],
+                                        digits = 5),
+                                 ")",
+                                 sep="")
+  )) %>%
+  mutate(icer = ifelse(intervention == "standard DAPT",
+                       NA,
+                       paste(format(nstemi_sa_baseline$icer[scenario],
+                                    digits = 5),
+                             " (",
+                             format(nstemi_sa_psa$icer_L[scenario],
+                                    digits = 5),
+                             ", ",
+                             format(nstemi_sa_psa$icer_U[scenario],
+                                    digits = 5),
+                             ")",
+                             sep="")
+  )) %>%
+  mutate(inc_nmb = ifelse(intervention == "standard DAPT",
+                          NA,
+                          paste(format(nstemi_sa_baseline$inc_nmb[scenario],
+                                       digits = 5),
+                                " (",
+                                format(nstemi_sa_psa$nmb_inc_L[scenario],
+                                       digits = 5),
+                                ", ",
+                                format(nstemi_sa_psa$nmb_inc_U[scenario],
+                                       digits = 5),
+                                ")",
+                                sep="")
+  )) %>%
+  relocate(nmb, .before = inc_nmb) %>%
+  arrange(scenario)
+
+if (SAVE_OUTPUTS){
+  write.csv(nstemi_scenario_df,
+            "nstemi_scenario_psa.csv")
+}

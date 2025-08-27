@@ -198,6 +198,35 @@ scenarios <- c("SA1",
                "SA11",
                "SA12")
 
+# Get central estimates
+baseline_results <- lapply(scenarios,
+                           FUN = function(scenario){
+                             draw_df <- uncertainty_df %>% mutate(draw = Value)
+                             psa_results <- run_PSA_arm_comparison(parameters_STEMI,
+                                                                   draw_df,
+                                                                   scenario = scenario)
+                             res_df <- psa_results[[1]] %>%
+                               cbind(psa_results[[3]] %>% # Attach event counts
+                                       pivot_wider(names_from = arm, 
+                                                   values_from = c(-arm)))%>%
+                               mutate(icer = inc_cost_dc_hs / inc_util_dc_hs) %>%
+                               mutate(scenario = scenario)
+                           }) %>%
+  bind_rows() %>%
+  group_by(scenario) %>%
+  select(-matches("dc_(.)c$")) %>% # Drop all cost/util columns without half step correction
+  select(-matches("^inc_(\\w+)dc$")) %>% # Drop all cost/util columns without half step correction
+  rename_all(.funs = function(name){ # Remove half step correction indicator
+    name %>%
+      str_replace_all("_hs", "") %>%
+      str_replace_all("_dc", "")
+  })
+
+if (SAVE_OUTPUTS){
+  fwrite(baseline_results,
+         file = "stemi_scenario_central_estimate.csv")
+}
+
 start_time <- Sys.time()
 multi_results <- lapply(scenarios,
                         FUN = function(scenario){
@@ -278,45 +307,45 @@ if (SAVE_OUTPUTS){
 
 
 ci_df <- data.frame(scenario = scenarios,
-                    lifeyears_sc_mean = summarise(multi_results, mean = mean(life_years_sc))$mean,
-                    lifeyears_sc_L = summarise(multi_results, q = quantile((life_years_sc), 0.025))$q,
-                    lifeyears_sc_U = summarise(multi_results, q = quantile((life_years_sc), 0.975))$q,
-                    cost_udc_sc_mean = summarise(multi_results, mean = mean(sc_cost_udc_hs))$mean,
-                    cost_udc_sc_L = summarise(multi_results, q = quantile((sc_cost_udc_hs), 0.025))$q,
-                    cost_udc_sc_U = summarise(multi_results, q = quantile((sc_cost_udc_hs), 0.975))$q,
-                    util_udc_sc_mean = summarise(multi_results, mean = mean(sc_util_udc_hs))$mean,
-                    util_udc_sc_L = summarise(multi_results, q = quantile((sc_util_udc_hs), 0.025))$q,
-                    util_udc_sc_U = summarise(multi_results, q = quantile((sc_util_udc_hs), 0.975))$q,
-                    cost_sc_mean = summarise(multi_results, mean = mean(sc_cost_dc_hs))$mean,
-                    cost_sc_L = summarise(multi_results, q = quantile((sc_cost_dc_hs), 0.025))$q,
-                    cost_sc_U = summarise(multi_results, q = quantile((sc_cost_dc_hs), 0.975))$q,
-                    util_sc_mean = summarise(multi_results, mean = mean(sc_util_dc_hs))$mean,
-                    util_sc_L = summarise(multi_results, q = quantile((sc_util_dc_hs), 0.025))$q,
-                    util_sc_U = summarise(multi_results, q = quantile((sc_util_dc_hs), 0.975))$q,
-                    nmb_sc_mean = summarise(multi_results, mean = mean(sc_nmb))$mean,
-                    nmb_sc_L = summarise(multi_results, q = quantile((sc_nmb), 0.025))$q,
-                    nmb_sc_U = summarise(multi_results, q = quantile((sc_nmb), 0.975))$q,
-                    lifeyears_pc_mean = summarise(multi_results, mean = mean(life_years_pc))$mean,
-                    lifeyears_pc_L = summarise(multi_results, q = quantile((life_years_pc), 0.025))$q,
-                    lifeyears_pc_U = summarise(multi_results, q = quantile((life_years_pc), 0.975))$q,
-                    cost_udc_pc_mean = summarise(multi_results, mean = mean(pc_cost_udc_hs))$mean,
-                    cost_udc_pc_L = summarise(multi_results, q = quantile((pc_cost_udc_hs), 0.025))$q,
-                    cost_udc_pc_U = summarise(multi_results, q = quantile((pc_cost_udc_hs), 0.975))$q,
-                    util_udc_pc_mean = summarise(multi_results, mean = mean(pc_util_udc_hs))$mean,
-                    util_udc_pc_L = summarise(multi_results, q = quantile((pc_util_udc_hs), 0.025))$q,
-                    util_udc_pc_U = summarise(multi_results, q = quantile((pc_util_udc_hs), 0.975))$q,
-                    cost_pc_mean = summarise(multi_results, mean = mean(pc_cost_dc_hs))$mean,
-                    cost_pc_L = summarise(multi_results, q = quantile((pc_cost_dc_hs), 0.025))$q,
-                    cost_pc_U = summarise(multi_results, q = quantile((pc_cost_dc_hs), 0.975))$q,
-                    util_pc_mean = summarise(multi_results, mean = mean(pc_util_dc_hs))$mean,
-                    util_pc_L = summarise(multi_results, q = quantile((pc_util_dc_hs), 0.025))$q,
-                    util_pc_U = summarise(multi_results, q = quantile((pc_util_dc_hs), 0.975))$q,
-                    nmb_pc_mean = summarise(multi_results, mean = mean(pc_nmb))$mean,
-                    nmb_pc_L = summarise(multi_results, q = quantile((pc_nmb), 0.025))$q,
-                    nmb_pc_U = summarise(multi_results, q = quantile((pc_nmb), 0.975))$q,
-                    lifeyears_inc_mean = summarise(multi_results, mean = mean(life_years_inc))$mean,
-                    lifeyears_inc_L = summarise(multi_results, q = quantile((life_years_inc), 0.025))$q,
-                    lifeyears_inc_U = summarise(multi_results, q = quantile((life_years_inc), 0.975))$q,
+                    life_years_sc_mean = summarise(multi_results, mean = mean(life_years_sc))$mean,
+                    life_years_sc_L = summarise(multi_results, q = quantile((life_years_sc), 0.025))$q,
+                    life_years_sc_U = summarise(multi_results, q = quantile((life_years_sc), 0.975))$q,
+                    cost_udc_sc_mean = summarise(multi_results, mean = mean(cost_udc_sc_hs))$mean,
+                    cost_udc_sc_L = summarise(multi_results, q = quantile((cost_udc_sc_hs), 0.025))$q,
+                    cost_udc_sc_U = summarise(multi_results, q = quantile((cost_udc_sc_hs), 0.975))$q,
+                    util_udc_sc_mean = summarise(multi_results, mean = mean(util_udc_sc_hs))$mean,
+                    util_udc_sc_L = summarise(multi_results, q = quantile((util_udc_sc_hs), 0.025))$q,
+                    util_udc_sc_U = summarise(multi_results, q = quantile((util_udc_sc_hs), 0.975))$q,
+                    cost_sc_mean = summarise(multi_results, mean = mean(cost_dc_sc_hs))$mean,
+                    cost_sc_L = summarise(multi_results, q = quantile((cost_dc_sc_hs), 0.025))$q,
+                    cost_sc_U = summarise(multi_results, q = quantile((cost_dc_sc_hs), 0.975))$q,
+                    util_sc_mean = summarise(multi_results, mean = mean(util_dc_sc_hs))$mean,
+                    util_sc_L = summarise(multi_results, q = quantile((util_dc_sc_hs), 0.025))$q,
+                    util_sc_U = summarise(multi_results, q = quantile((util_dc_sc_hs), 0.975))$q,
+                    nmb_sc_mean = summarise(multi_results, mean = mean(nmb_sc))$mean,
+                    nmb_sc_L = summarise(multi_results, q = quantile((nmb_sc), 0.025))$q,
+                    nmb_sc_U = summarise(multi_results, q = quantile((nmb_sc), 0.975))$q,
+                    life_years_pc_mean = summarise(multi_results, mean = mean(life_years_pc))$mean,
+                    life_years_pc_L = summarise(multi_results, q = quantile((life_years_pc), 0.025))$q,
+                    life_years_pc_U = summarise(multi_results, q = quantile((life_years_pc), 0.975))$q,
+                    cost_udc_pc_mean = summarise(multi_results, mean = mean(cost_udc_pc_hs))$mean,
+                    cost_udc_pc_L = summarise(multi_results, q = quantile((cost_udc_pc_hs), 0.025))$q,
+                    cost_udc_pc_U = summarise(multi_results, q = quantile((cost_udc_pc_hs), 0.975))$q,
+                    util_udc_pc_mean = summarise(multi_results, mean = mean(util_udc_pc_hs))$mean,
+                    util_udc_pc_L = summarise(multi_results, q = quantile((util_udc_pc_hs), 0.025))$q,
+                    util_udc_pc_U = summarise(multi_results, q = quantile((util_udc_pc_hs), 0.975))$q,
+                    cost_pc_mean = summarise(multi_results, mean = mean(cost_dc_pc_hs))$mean,
+                    cost_pc_L = summarise(multi_results, q = quantile((cost_dc_pc_hs), 0.025))$q,
+                    cost_pc_U = summarise(multi_results, q = quantile((cost_dc_pc_hs), 0.975))$q,
+                    util_pc_mean = summarise(multi_results, mean = mean(util_dc_pc_hs))$mean,
+                    util_pc_L = summarise(multi_results, q = quantile((util_dc_pc_hs), 0.025))$q,
+                    util_pc_U = summarise(multi_results, q = quantile((util_dc_pc_hs), 0.975))$q,
+                    nmb_pc_mean = summarise(multi_results, mean = mean(nmb_pc))$mean,
+                    nmb_pc_L = summarise(multi_results, q = quantile((nmb_pc), 0.025))$q,
+                    nmb_pc_U = summarise(multi_results, q = quantile((nmb_pc), 0.975))$q,
+                    life_years_inc_mean = summarise(multi_results, mean = mean(life_years_inc))$mean,
+                    life_years_inc_L = summarise(multi_results, q = quantile((life_years_inc), 0.025))$q,
+                    life_years_inc_U = summarise(multi_results, q = quantile((life_years_inc), 0.975))$q,
                     cost_udc_inc_mean = summarise(multi_results, mean = mean(inc_cost_udc_hs))$mean,
                     cost_udc_inc_L = summarise(multi_results, q = quantile((inc_cost_udc_hs), 0.025))$q,
                     cost_udc_inc_U = summarise(multi_results, q = quantile((inc_cost_udc_hs), 0.975))$q,
