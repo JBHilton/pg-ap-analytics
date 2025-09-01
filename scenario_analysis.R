@@ -34,7 +34,7 @@ AVE_TIME_TO_EVENT <- 0.5
 # Set to true to save the results of the arm comparison as a .csv file. The file
 # path can be set on the following line:
 SAVE_SCENARIO_ANALYSIS <- FALSE
-SAVE_FILEPATH <- ""
+SAVE_FILEPATH <- "stemi_"
 
 library("data.table")
 library("dplyr")

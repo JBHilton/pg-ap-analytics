@@ -278,7 +278,7 @@ mr_split <- split(multi_results,
                   multi_results$scenario)
 
 # Add bootstrap samples:
-n_bootstrap <- 100
+n_bootstrap <- 1000
 for (i in 1:n_bootstrap){
   varname <- paste("bootstrap_sample", i)
   sample_ids <- sample(1:n_sample,
@@ -301,7 +301,7 @@ ce_thresh_df <- ce_thresh_df[, -which(grepl("bootstrap", colnames(ce_thresh_df))
 if (SAVE_OUTPUTS){
   fwrite(ce_thresh_df,
          file = paste(SAVE_FILEPATH,
-                      "_acceptance_probability.csv",
+                      "_psa_acceptance_probability.csv",
                       sep=""))
 }
 
