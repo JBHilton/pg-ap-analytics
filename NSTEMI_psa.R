@@ -241,6 +241,12 @@ print(paste("PSA for",
                      start_time,
                      units = "secs"),
             "seconds."))
+if (SAVE_OUTPUTS){
+  fwrite(multi_results,
+         file = paste(SAVE_FILEPATH,
+                      "_psa_samples.csv",
+                      sep = ""))
+}
 
 ce_line_df <- data.frame(x = c(min(multi_results$inc_util_dc_hs),
                                max(multi_results$inc_util_dc_hs),

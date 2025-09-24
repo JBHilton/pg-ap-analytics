@@ -89,13 +89,6 @@ rescale_probs <- function(baseline_prob_df,
 
 # Define subpopulations
 
-# Keeping this for now in case we revert and want a quick reference point for
-# exact formatting
-old_subpop_names <- c("clo_lof",
-                      "clo_no_lof",
-                      "tic",
-                      "pra")
-
 subpop_names <- c("ac_lof",
                   "ac_no_lof",
                   "at",
