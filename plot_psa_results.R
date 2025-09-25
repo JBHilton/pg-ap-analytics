@@ -18,11 +18,12 @@ library("tidyverse")
 
 
 #### Do STEMI first #####
-SAVE_FILEPATH <- paste("outputs/stemi_n_", n_sample, sep="")
+SAVE_FILEPATH <- paste("stemi_n_", n_sample, sep="")
 
 det_results <- read_csv(file = paste("outputs/stemi_arm_comparison.csv",
                                      sep = ""))
-multi_results <- read_csv(file = paste(SAVE_FILEPATH,
+multi_results <- read_csv(file = paste("outputs/",
+                                       SAVE_FILEPATH,
                                        "_psa_samples.csv",
                                        sep = ""))
 
@@ -86,7 +87,8 @@ ggsave(paste("plots/",
        width = 12,
        height = 10)
 
-ce_thresh_df <- read_csv(file = paste(SAVE_FILEPATH,
+ce_thresh_df <- read_csv(file = paste("outputs/",
+                                      SAVE_FILEPATH,
                                       "_acceptance_probability.csv",
                                       sep="")) %>%
   filter(ce_threshold < 18000)
@@ -115,11 +117,12 @@ ggsave(paste("plots/",
 
 #### Now do NSTEMI ####
 
-SAVE_FILEPATH <- paste("outputs/nstemi_n_", n_sample, sep="")
+SAVE_FILEPATH <- paste("nstemi_n_", n_sample, sep="")
 
-det_results <- read_csv(file = paste("stemi_arm_comparison.csv",
+det_results <- read_csv(file = paste("outputs/nstemi_arm_comparison.csv",
                                      sep = ""))
-multi_results <- read_csv(file = paste(SAVE_FILEPATH,
+multi_results <- read_csv(file = paste("outputs/",
+                                       SAVE_FILEPATH,
                                        "_psa_samples.csv",
                                        sep = ""))
 
@@ -177,7 +180,8 @@ ggsave(paste("plots/",
        width = 12,
        height = 10)
 
-ce_thresh_df <- read_csv(file = paste(SAVE_FILEPATH,
+ce_thresh_df <- read_csv(file = paste("outputs/",
+                                      SAVE_FILEPATH,
                                       "_acceptance_probability.csv",
                                       sep="")) %>%
   filter(ce_threshold < 18000)
