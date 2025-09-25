@@ -17,7 +17,9 @@ CASE <- "NSTEMI"
 SAVE_OUTPUTS <- TRUE
 
 n_sample <- 1e4
-SAVE_FILEPATH <- paste("nstemi_n_", n_sample, sep="")
+dir.create("outputs",
+           showWarnings = FALSE)
+SAVE_FILEPATH <- paste("outputs/nstemi_n_", n_sample, sep="")
 
 library("data.table")
 library("dplyr")

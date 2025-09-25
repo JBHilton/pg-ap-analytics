@@ -18,9 +18,9 @@ library("tidyverse")
 
 
 #### Do STEMI first #####
-SAVE_FILEPATH <- paste("stemi_n_", n_sample, sep="")
+SAVE_FILEPATH <- paste("outputs/stemi_n_", n_sample, sep="")
 
-det_results <- read_csv(file = paste("stemi_arm_comparison.csv",
+det_results <- read_csv(file = paste("outputs/stemi_arm_comparison.csv",
                                      sep = ""))
 multi_results <- read_csv(file = paste(SAVE_FILEPATH,
                                        "_psa_samples.csv",
@@ -115,7 +115,7 @@ ggsave(paste("plots/",
 
 #### Now do NSTEMI ####
 
-SAVE_FILEPATH <- paste("nstemi_n_", n_sample, sep="")
+SAVE_FILEPATH <- paste("outputs/nstemi_n_", n_sample, sep="")
 
 det_results <- read_csv(file = paste("stemi_arm_comparison.csv",
                                      sep = ""))

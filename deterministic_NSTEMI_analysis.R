@@ -35,7 +35,9 @@ AVE_TIME_TO_EVENT <- 0.5
 # Set to true to save the results of the arm comparison as a .csv file. The file
 # path can be set on the following line:
 SAVE_ARM_COMPARISON <- TRUE
-SAVE_FILEPATH <- "nstemi_"
+dir.create("outputs",
+           showWarnings = FALSE)
+SAVE_FILEPATH <- "outputs/nstemi_"
 
 library("data.table")
 library("dplyr")
