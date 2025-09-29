@@ -1111,7 +1111,7 @@ run_PSA_arm_comparison <- function(par_df,
                                            if (t==0){
                                              return(build_markov_model(1))
                                            }else{
-                                             return(build_markov_model(t+1))
+                                             return(build_markov_model(t))
                                            }
                                          }
                                        }), accumulate = TRUE),
@@ -1163,7 +1163,7 @@ run_PSA_arm_comparison <- function(par_df,
                                            if (t==0){
                                              return(build_markov_model(1))
                                            }else{
-                                             return(build_markov_model(t+1))
+                                             return(build_markov_model(t))
                                            }
                                          }
                                        }), accumulate = TRUE),

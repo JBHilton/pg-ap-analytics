@@ -34,7 +34,7 @@ AVE_TIME_TO_EVENT <- 0.5
 
 # Set to true to save the results of the arm comparison as a .csv file. The file
 # path can be set on the following line:
-SAVE_ARM_COMPARISON <- FALSE
+SAVE_ARM_COMPARISON <- TRUE
 dir.create("outputs",
            showWarnings = FALSE)
 SAVE_FILEPATH <- "outputs/stemi_"
@@ -231,7 +231,7 @@ arm_comparison <- data.frame(arm = c("sc", "pc", "inc"),
                                                (dt_sc_cost + sum(MC_costs_sc$halfstep))),
                              ratio_udc = c(NA,
                                               NA,
-                                              ICER_undisc),
+                                              ICER_undisc_hs),
                              util = c(dt_sc_util + sum(utility_sc$discounted_halfstep),
                                                dt_pc_util + sum(utility_pc$discounted_halfstep),
                                                (dt_pc_util + sum(utility_pc$discounted_halfstep)) -
@@ -242,7 +242,7 @@ arm_comparison <- data.frame(arm = c("sc", "pc", "inc"),
                                               (dt_sc_cost + sum(MC_costs_sc$discounted_halfstep))),
                              icer = c(NA,
                                              NA,
-                                             ICER_disc),
+                                             ICER_disc_hs),
                              nmb = 20000 * c(dt_sc_util + sum(utility_sc$discounted_halfstep),
                                                 dt_pc_util + sum(utility_pc$discounted_halfstep),
                                                 (dt_pc_util + sum(utility_pc$discounted_halfstep)) -
