@@ -32,6 +32,8 @@ xlim <- c(0.1 * floor(min(multi_results$inc_util_dc_hs) / 0.1),
           0.1 * ceiling(max(multi_results$inc_util_dc_hs) / 0.1))
 ylim <- c(200 * floor(min(multi_results$inc_cost_dc_hs) / 200),
           200 * ceiling(max(multi_results$inc_cost_dc) / 200))
+# ylim <- c(-10000,
+#           10000)
 
 det_cost_util <- det_results %>%
   filter(output_name %in% c("cost", "util")) %>%
@@ -41,8 +43,8 @@ det_cost_util <- det_results %>%
   as.data.frame()
 
 # Choose limits of CE threshold lines so that there are minimal changes to axes
-ce_thresh_1 = 2 * 10e4
-ce_thresh_2 = 3 * 10e4
+ce_thresh_1 = 2 * 1e4
+ce_thresh_2 = 3 * 1e4
 ce_line_df <- data.frame(x = c(.99 * ylim / ce_thresh_1,
                                .99 * ylim / ce_thresh_2),
                          ce_threshold = c(ce_thresh_1,
@@ -91,7 +93,7 @@ ce_thresh_df <- read_csv(file = paste("outputs/",
                                       SAVE_FILEPATH,
                                       "_acceptance_probability.csv",
                                       sep="")) %>%
-  filter(ce_threshold < 18000)
+  filter(ce_threshold <= 18000)
 
 stemi_ce_thresh_plot <- ggplot(ce_thresh_df,
                                aes(x = ce_threshold,
@@ -126,6 +128,12 @@ multi_results <- read_csv(file = paste("outputs/",
                                        "_psa_samples.csv",
                                        sep = ""))
 
+# Calculate axis limits; utility cuts off at nearest .1, cost to nearest £200
+xlim <- c(0.1 * floor(min(multi_results$inc_util_dc_hs) / 0.1),
+          0.1 * ceiling(max(multi_results$inc_util_dc_hs) / 0.1))
+ylim <- c(200 * floor(min(multi_results$inc_cost_dc_hs) / 200),
+          200 * ceiling(max(multi_results$inc_cost_dc) / 200))
+
 det_cost_util <- det_results %>%
   filter(output_name %in% c("cost", "util")) %>%
   select(c(output_name, inc)) %>%
@@ -134,8 +142,8 @@ det_cost_util <- det_results %>%
   as.data.frame()
 
 # Choose limits of CE threshold lines so that there are minimal changes to axes
-ce_thresh_1 = 2 * 10e4
-ce_thresh_2 = 3 * 10e4
+ce_thresh_1 = 2 * 1e4
+ce_thresh_2 = 3 * 1e4
 ce_line_df <- data.frame(x = c(.99 * ylim / ce_thresh_1,
                                .99 * ylim / ce_thresh_2),
                          ce_threshold = c(ce_thresh_1,

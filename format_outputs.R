@@ -2,16 +2,24 @@
 # tables of base cases and confidence intervals.
 
 SAVE_OUTPUTS <- TRUE
+dir.create("formatted_outputs",
+           showWarnings = FALSE)
 
 library(stringr)
 library(tidyverse)
 
-stemi_arm_comparison <- read.csv("stemi_arm_comparison.csv")
-stemi_psa <- read.csv("stemi_n_10000_psa_stats.csv")
-stemi_prob_ce <- read.csv("stemi_n_10000_acceptance_probability.csv")
-nstemi_arm_comparison <- read.csv("nstemi_arm_comparison.csv")
-nstemi_psa <- read.csv("nstemi_n_1e+05_psa_stats.csv")
-nstemi_prob_ce <- read.csv("nstemi_n_1e+05_acceptance_probability.csv")
+stemi_arm_comparison <- read.csv("outputs/stemi_arm_comparison.csv")
+stemi_psa <- read.csv("outputs/stemi_n_1e+05_psa_stats.csv")
+stemi_prob_ce <- read.csv("outputs/stemi_n_1e+05_acceptance_probability.csv")
+nstemi_arm_comparison <- read.csv("outputs/nstemi_arm_comparison.csv")
+nstemi_psa <- read.csv("outputs/nstemi_n_1e+05_psa_stats.csv")
+nstemi_prob_ce <- read.csv("outputs/nstemi_n_1e+05_acceptance_probability.csv")
+
+# Extra stuff for checking
+stemi_ac_short <- stemi_arm_comparison %>% filter(output_name %in% stemi_psa$output_name) %>% arrange(output_name)
+stemi_psa <- stemi_psa %>% arrange(output_name)
+nstemi_ac_short <- nstemi_arm_comparison %>% filter(output_name %in% nstemi_psa$output_name) %>% arrange(output_name)
+nstemi_psa <- nstemi_psa %>% arrange(output_name)
 
 print_stemi_output <- function(arm,
                          output,
@@ -112,7 +120,7 @@ main_df <- data.frame(group = rep("STEMI",
                                        "genotype-guided DAPT"),
                       life_years = sapply(c("sc", "pc"),
                                           print_stemi_output,
-                                          output = "lifeyears",
+                                          output = "life_years",
                                           digits=5),
                       costs_udc = sapply(c("sc", "pc"),
                                          print_stemi_output,
@@ -161,7 +169,7 @@ main_df <- data.frame(group = rep("STEMI",
                                 "genotype-guided DAPT"),
                life_years = sapply(c("sc", "pc"),
                                    print_nstemi_output,
-                                   output = "lifeyears",
+                                   output = "life_years",
                                    digits=5),
                costs_udc = sapply(c("sc", "pc"),
                                   print_nstemi_output,
@@ -207,14 +215,14 @@ main_df <- data.frame(group = rep("STEMI",
 
 if (SAVE_OUTPUTS){
   write.csv(main_df,
-            "base_case_and_PSA.csv")
+            "formatted_outputs/base_case_and_PSA.csv")
 }
 # Now load in event count results
 
-stemi_event_counts <- read.csv("stemi_event_counts.csv")
-stemi_event_psa <- read.csv("stemi_n_10000_event_stats.csv")
-nstemi_event_counts <- read.csv("nstemi_event_counts.csv")
-nstemi_event_psa <- read.csv("nstemi_n_100_event_stats.csv")
+stemi_event_counts <- read.csv("outputs/stemi_event_counts.csv")
+stemi_event_psa <- read.csv("outputs/stemi_n_1e+05_event_stats.csv")
+nstemi_event_counts <- read.csv("outputs/nstemi_event_counts.csv")
+nstemi_event_psa <- read.csv("outputs/nstemi_n_1e+05_event_stats.csv")
 
 arm_pos <- function(arm) ifelse(arm=="sc", 1, 2)
 
@@ -326,15 +334,15 @@ events_df <- data.frame(group = rep("STEMI",
 
 if (SAVE_OUTPUTS){
   write.csv(events_df,
-            "base_case_event_counts.csv")
+            "formatted_outputs/base_case_event_counts.csv")
 }
 
 # Now load in scenario analysis results
 
-stemi_sa_baseline <- read.csv("stemi_scenario_central_estimate.csv")
-stemi_sa_psa <- read.csv("stemi_n_100_scenario_psa_stats.csv")
-nstemi_sa_baseline <- read.csv("nstemi_scenario_central_estimate.csv")
-nstemi_sa_psa <- read.csv("nstemi_n_100_scenario_psa_stats.csv")
+stemi_sa_baseline <- read.csv("outputs/stemi_scenario_central_estimate.csv")
+stemi_sa_psa <- read.csv("outputs/stemi_n_10000_scenario_psa_stats.csv")
+nstemi_sa_baseline <- read.csv("outputs/nstemi_scenario_central_estimate.csv")
+nstemi_sa_psa <- read.csv("outputs/nstemi_n_10000_scenario_psa_stats.csv")
 
 n_stemi_scenario <- nrow(stemi_sa_baseline)
 print_stemi_scenarios <- function(arm,
@@ -480,7 +488,7 @@ stemi_scenario_df <- stemi_scenario_df %>%
 
 if (SAVE_OUTPUTS){
   write.csv(stemi_scenario_df,
-            "stemi_scenario_psa.csv")
+            "formatted_outputs/stemi_scenario_psa.csv")
 }
 
 nstemi_scenario_df <- data.frame(group = rep("NSTEMI",
@@ -555,5 +563,5 @@ nstemi_scenario_df <- nstemi_scenario_df %>%
 
 if (SAVE_OUTPUTS){
   write.csv(nstemi_scenario_df,
-            "nstemi_scenario_psa.csv")
+            "formatted_outputs/nstemi_scenario_psa.csv")
 }

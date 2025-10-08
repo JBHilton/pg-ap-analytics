@@ -218,7 +218,7 @@ ICER_disc_hs <- ((dt_pc_cost + sum(MC_costs_pc$discounted_halfstep)) - (dt_sc_co
 
 # Create a dataframe storing outputs by case:
 arm_comparison <- data.frame(arm = c("sc", "pc", "inc"),
-                             lifeyears = c(life_years_sc,
+                             life_years = c(life_years_sc,
                                             life_years_pc,
                                             life_years_pc - life_years_sc),
                              util_udc = c(dt_sc_util + sum(utility_sc$halfstep),

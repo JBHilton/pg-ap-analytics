@@ -179,6 +179,15 @@ uncertainty_df <- read_xlsx("data-inputs/masterfile_070725.xlsx",
          par1 = as.numeric(par1),
          par2 = as.numeric(par2)) # Convert values from characters to numbers
 
+# Corrections to lognormal distributions
+uncertainty_df <- uncertainty_df %>%
+  mutate(par1 = ifelse(distribution=="lognormal",
+                       yes = log(Value^2 / sqrt(Value^2 + SE^2)),
+                       no = par1),
+         par2 = ifelse(distribution=="lognormal",
+                       yes = log(1 + SE^2 / Value^2),
+                       no = par2))
+
 # Reorder so that when we take common lines with parameter dataframe everything
 # is in the correct row:
 uncertainty_df <- uncertainty_df[order(match(uncertainty_df$variable.name,
@@ -226,7 +235,7 @@ baseline_results <- lapply(scenarios,
 
 if (SAVE_OUTPUTS){
   fwrite(baseline_results,
-         file = "stemi_scenario_central_estimate.csv")
+         file = "outputs/stemi_scenario_central_estimate.csv")
 }
 
 start_time <- Sys.time()
