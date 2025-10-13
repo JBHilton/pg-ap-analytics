@@ -198,7 +198,8 @@ scenarios <- c("SA1",
                "SA9",
                "SA10",
                "SA11",
-               "SA12")
+               "SA12",
+               "SA13")
 
 # Get central estimates
 baseline_results <- lapply(scenarios,
@@ -260,6 +261,12 @@ print(paste("PSA for",
                      start_time,
                      units = "secs"),
             "seconds."))
+if (SAVE_OUTPUTS){
+  fwrite(multi_results,
+         file = paste(SAVE_FILEPATH,
+                      "_scenario_samples.csv",
+                      sep = ""))
+}
 
 # Add indicator for whether ICER passes threshold for each sample
 ce_threshold = 20000

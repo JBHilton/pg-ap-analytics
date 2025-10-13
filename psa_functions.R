@@ -370,9 +370,14 @@ run_PSA_arm_comparison <- function(par_df,
   
   # SA4: prevalence=56.8%
   if (scenario == "SA4"){
-    lof_prev = lof_prev_as
+    lof_prev <- lof_prev_as
   }else{
     lof_prev <- lof_prev_eu
+  }
+  
+  # SA13: daily cost of ticagrelor is £0.08
+  if (scenario == "SA13"){
+    par_df$value[par_df$variable.name=="day_cost_tica"] <- .08
   }
   
   # Get cost_pci, baseline cost applied in all courses
@@ -1103,45 +1108,23 @@ run_PSA_arm_comparison <- function(par_df,
   )
   
   
-  if (pop == "STEMI"){
-    MT_pc <- sapply(Reduce("%*%", lapply(-1:(n_tsteps-1),
-                                         FUN = function(t){
-                                           if (t==-1){
-                                             return(diag(nrow = n_states))
-                                           }else{
-                                             if (t==0){
-                                               return(build_markov_model(1))
-                                             }else{
-                                               return(build_markov_model(t))
-                                             }
-                                           }
-                                         }), accumulate = TRUE),
-                    FUN = function(A){
-                      P0_pc %*% A
-                    }
-    ) %>%
-      t() %>%
-      as.data.frame() %>%
-      `colnames<-`(markov_states) %>%
-      mutate(time_step = 0:n_tsteps)
-  }else{
-    MT_pc <- sapply(Reduce("%*%", lapply(0:n_tsteps,
-                                         FUN = function(t){
-                                           if (t==0){
-                                             return(diag(nrow = n_states))
-                                           }else{
-                                             return(build_markov_model(t))
-                                           }
-                                         }), accumulate = TRUE),
-                    FUN = function(A){
-                      P0_pc %*% A
-                    }
-    ) %>%
-      t() %>%
-      as.data.frame() %>%
-      `colnames<-`(markov_states) %>%
-      mutate(time_step = 0:n_tsteps)
-  }
+
+  MT_pc <- sapply(Reduce("%*%", lapply(0:n_tsteps,
+                                       FUN = function(t){
+                                         if (t==0){
+                                           return(diag(nrow = n_states))
+                                         }else{
+                                           return(build_markov_model(t))
+                                         }
+                                       }), accumulate = TRUE),
+                  FUN = function(A){
+                    P0_pc %*% A
+                  }
+  ) %>%
+    t() %>%
+    as.data.frame() %>%
+    `colnames<-`(markov_states) %>%
+    mutate(time_step = 0:n_tsteps)
   
   
   # Calculate expected utility over time:
@@ -1174,45 +1157,23 @@ run_PSA_arm_comparison <- function(par_df,
                     sum(dt_results_sc$prob[dt_results_sc$event == event])}
   )
   
-  if (pop == "STEMI"){
-    MT_sc <- sapply(Reduce("%*%", lapply(-1:(n_tsteps-1),
-                                         FUN = function(t){
-                                           if (t==-1){
-                                             return(diag(nrow = n_states))
-                                           }else{
-                                             if (t==0){
-                                               return(build_markov_model(1))
-                                             }else{
-                                               return(build_markov_model(t))
-                                             }
-                                           }
-                                         }), accumulate = TRUE),
-                    FUN = function(A){
-                      P0_sc %*% A
-                    }
-    ) %>%
-      t() %>%
-      as.data.frame() %>%
-      `colnames<-`(markov_states) %>%
-      mutate(time_step = 0:n_tsteps)
-  }else{
-    MT_sc <- sapply(Reduce("%*%", lapply(0:n_tsteps,
-                                         FUN = function(t){
-                                           if (t==0){
-                                             return(diag(nrow = n_states))
-                                           }else{
-                                             return(build_markov_model(t))
-                                           }
-                                         }), accumulate = TRUE),
-                    FUN = function(A){
-                      P0_sc %*% A
-                    }
-    ) %>%
-      t() %>%
-      as.data.frame() %>%
-      `colnames<-`(markov_states) %>%
-      mutate(time_step = 0:n_tsteps)
-    }
+
+  MT_sc <- sapply(Reduce("%*%", lapply(0:n_tsteps,
+                                       FUN = function(t){
+                                         if (t==0){
+                                           return(diag(nrow = n_states))
+                                         }else{
+                                           return(build_markov_model(t))
+                                         }
+                                       }), accumulate = TRUE),
+                  FUN = function(A){
+                    P0_sc %*% A
+                  }
+  ) %>%
+    t() %>%
+    as.data.frame() %>%
+    `colnames<-`(markov_states) %>%
+    mutate(time_step = 0:n_tsteps)
   
   
   # Calculate expected utility over time:

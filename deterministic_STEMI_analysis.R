@@ -34,7 +34,7 @@ AVE_TIME_TO_EVENT <- 0.5
 
 # Set to true to save the results of the arm comparison as a .csv file. The file
 # path can be set on the following line:
-SAVE_ARM_COMPARISON <- TRUE
+SAVE_ARM_COMPARISON <- FALSE
 dir.create("outputs",
            showWarnings = FALSE)
 SAVE_FILEPATH <- "outputs/stemi_"
@@ -79,16 +79,12 @@ markov_update <- function(p, t){
   print(p)
   return(p)
 }
-MT_pc <- sapply(Reduce("%*%", lapply(-1:(n_tsteps-1),
+MT_pc <- sapply(Reduce("%*%", lapply(0:n_tsteps,
                                      FUN = function(t){
-                                       if (t==-1){
+                                       if (t==0){
                                          return(diag(nrow = n_states))
                                        }else{
-                                         if (t==0){
-                                           return(build_markov_model(1))
-                                         }else{
-                                           return(build_markov_model(t))
-                                         }
+                                         return(build_markov_model(t))
                                        }
                                      }), accumulate = TRUE),
                 FUN = function(A){
@@ -131,18 +127,14 @@ P0_sc <- sapply(markov_states,
                   sum(dt_results_sc$prob[dt_results_sc$event == event])}
 )
 
-MT_sc <- sapply(Reduce("%*%", lapply(-1:(n_tsteps-1),
+MT_sc <- sapply(Reduce("%*%", lapply(0:n_tsteps,
                                      FUN = function(t){
-                                       if (t==-1){
+                                       if (t==0){
                                          return(diag(nrow = n_states))
                                        }else{
-                                         if (t==0){
-                                           return(build_markov_model(1))
-                                         }else{
-                                           return(build_markov_model(t))
-                                         }
+                                         return(build_markov_model(t))
                                        }
-                                       }), accumulate = TRUE),
+                                     }), accumulate = TRUE),
                 FUN = function(A){
                   P0_sc %*% A
                 }

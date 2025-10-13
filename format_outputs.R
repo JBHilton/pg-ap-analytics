@@ -21,6 +21,36 @@ stemi_psa <- stemi_psa %>% arrange(output_name)
 nstemi_ac_short <- nstemi_arm_comparison %>% filter(output_name %in% nstemi_psa$output_name) %>% arrange(output_name)
 nstemi_psa <- nstemi_psa %>% arrange(output_name)
 
+# Population sizes for total NMB:
+stemi_size = 41690
+nstemi_size = 61248
+
+stemi_nmb_df <- stemi_arm_comparison %>% filter(output_name == "nmb")
+stemi_arm_comparison <- stemi_arm_comparison %>%
+  add_row(output_name = "total_nmb",
+          sc = stemi_size * stemi_nmb_df$sc,
+          pc = stemi_size * stemi_nmb_df$pc,
+          inc = stemi_size * stemi_nmb_df$inc)
+stemi_psa_nmb <- stemi_psa %>%
+  filter(output_name == "nmb") %>%
+  select(-output_name)
+stemi_psa <- stemi_psa %>%
+  rbind(data.frame(output_name="total_nmb",
+                   stemi_size * stemi_psa_nmb))
+
+nstemi_nmb_df <- nstemi_arm_comparison %>% filter(output_name == "nmb")
+nstemi_arm_comparison <- nstemi_arm_comparison %>%
+  add_row(output_name = "total_nmb",
+          sc = nstemi_size * nstemi_nmb_df$sc,
+          pc = nstemi_size * nstemi_nmb_df$pc,
+          inc = nstemi_size * nstemi_nmb_df$inc)
+nstemi_psa_nmb <- nstemi_psa %>%
+  filter(output_name == "nmb") %>%
+  select(-output_name)
+nstemi_psa <- nstemi_psa %>%
+  rbind(data.frame(output_name="total_nmb",
+                   nstemi_size * nstemi_psa_nmb))
+
 print_stemi_output <- function(arm,
                          output,
                          digits=3){
@@ -154,6 +184,10 @@ main_df <- data.frame(group = rep("STEMI",
                                        print_stemi_output,
                                        output = "nmb",
                                        digits=5),
+                      total_nmb = sapply(c("sc", "pc"),
+                                       print_stemi_output,
+                                       output = "total_nmb",
+                                       digits=5),
                       inc_nmb = c(0,
                                   print_stemi_output("inc",
                                                      "nmb",
@@ -203,6 +237,10 @@ main_df <- data.frame(group = rep("STEMI",
                                 print_nstemi_output,
                                 output = "nmb",
                                 digits=5),
+               total_nmb = sapply(c("sc", "pc"),
+                                  print_stemi_output,
+                                  output = "total_nmb",
+                                  digits=5),
                inc_nmb = c(0,
                            print_nstemi_output("inc",
                                               "nmb",
@@ -211,7 +249,11 @@ main_df <- data.frame(group = rep("STEMI",
                               print_ce_prob(nstemi_prob_ce,
                                             digits=5))
     )
-  )
+  ) %>% 
+  mutate(grp_split = factor(group, levels = c("STEMI", "NSTEMI"))) %>%
+  group_split(grp_split) %>% 
+  map_dfr(~ add_row(.x, .after = Inf)) %>%
+  select(-grp_split)
 
 if (SAVE_OUTPUTS){
   write.csv(main_df,
@@ -330,7 +372,11 @@ events_df <- data.frame(group = rep("STEMI",
                                     output = "death_mc",
                                     digits=5)
   )
-)
+) %>% 
+  mutate(grp_split = factor(group, levels = c("STEMI", "NSTEMI"))) %>%
+  group_split(grp_split) %>% 
+  map_dfr(~ add_row(.x, .after = Inf)) %>%
+  select(-grp_split)
 
 if (SAVE_OUTPUTS){
   write.csv(events_df,
@@ -339,10 +385,28 @@ if (SAVE_OUTPUTS){
 
 # Now load in scenario analysis results
 
-stemi_sa_baseline <- read.csv("outputs/stemi_scenario_central_estimate.csv")
-stemi_sa_psa <- read.csv("outputs/stemi_n_10000_scenario_psa_stats.csv")
-nstemi_sa_baseline <- read.csv("outputs/nstemi_scenario_central_estimate.csv")
-nstemi_sa_psa <- read.csv("outputs/nstemi_n_10000_scenario_psa_stats.csv")
+stemi_sa_baseline <- read.csv("outputs/stemi_scenario_central_estimate.csv") %>%
+  mutate(total_nmb_sc = stemi_size * nmb_sc,
+         total_nmb_pc = stemi_size * nmb_pc)
+stemi_sa_psa <- read.csv("outputs/stemi_n_10000_scenario_psa_stats.csv") %>%
+  mutate(total_nmb_sc_mean = stemi_size * nmb_sc_mean,
+         total_nmb_sc_L = stemi_size * nmb_sc_L,
+         total_nmb_sc_U = stemi_size * nmb_sc_U,
+         total_nmb_pc_mean = stemi_size * nmb_pc_mean,
+         total_nmb_pc_L = stemi_size * nmb_pc_L,
+         total_nmb_pc_U = stemi_size * nmb_pc_U)
+stemi_scenario_prob_ce <- read.csv("outputs/stemi_n_10000_psa_acceptance_probability.csv")
+nstemi_sa_baseline <- read.csv("outputs/nstemi_scenario_central_estimate.csv") %>%
+  mutate(total_nmb_sc = stemi_size * nmb_sc,
+         total_nmb_pc = stemi_size * nmb_pc)
+nstemi_sa_psa <- read.csv("outputs/nstemi_n_10000_scenario_psa_stats.csv") %>%
+  mutate(total_nmb_sc_mean = stemi_size * nmb_sc_mean,
+         total_nmb_sc_L = stemi_size * nmb_sc_L,
+         total_nmb_sc_U = stemi_size * nmb_sc_U,
+         total_nmb_pc_mean = stemi_size * nmb_pc_mean,
+         total_nmb_pc_L = stemi_size * nmb_pc_L,
+         total_nmb_pc_U = stemi_size * nmb_pc_U)
+nstemi_scenario_prob_ce <- read.csv("outputs/nstemi_n_10000_psa_acceptance_probability.csv")
 
 n_stemi_scenario <- nrow(stemi_sa_baseline)
 print_stemi_scenarios <- function(arm,
@@ -483,8 +547,24 @@ stemi_scenario_df <- stemi_scenario_df %>%
                                  ")",
                                  sep="")
   )) %>%
+  mutate(prob_ce = ifelse(intervention == "standard DAPT",
+                          NA,
+                          paste(format(stemi_scenario_prob_ce$ce_prob[scenario],
+                                       digits = 5),
+                                " (",
+                                format(stemi_scenario_prob_ce$lower_95[scenario],
+                                       digits = 5),
+                                ", ",
+                                format(stemi_scenario_prob_ce$upper_95[scenario],
+                                       digits = 5),
+                                ")",
+                                sep="")
+  )) %>%
   relocate(nmb, .before = inc_nmb) %>%
-  arrange(scenario)
+  relocate(total_nmb, .before = inc_nmb) %>%
+  arrange(scenario) %>% 
+  group_split(scenario) %>% 
+  map_dfr(~ add_row(.x, .after = Inf))
 
 if (SAVE_OUTPUTS){
   write.csv(stemi_scenario_df,
@@ -558,8 +638,24 @@ nstemi_scenario_df <- nstemi_scenario_df %>%
                                 ")",
                                 sep="")
   )) %>%
+  mutate(prob_ce = ifelse(intervention == "standard DAPT",
+                          NA,
+                          paste(format(nstemi_scenario_prob_ce$ce_prob[scenario],
+                                       digits = 5),
+                                " (",
+                                format(nstemi_scenario_prob_ce$lower_95[scenario],
+                                       digits = 5),
+                                ", ",
+                                format(nstemi_scenario_prob_ce$upper_95[scenario],
+                                       digits = 5),
+                                ")",
+                                sep="")
+  )) %>%
   relocate(nmb, .before = inc_nmb) %>%
-  arrange(scenario)
+  relocate(total_nmb, .before = inc_nmb) %>%
+  arrange(scenario) %>% 
+  group_split(scenario) %>% 
+  map_dfr(~ add_row(.x, .after = Inf))
 
 if (SAVE_OUTPUTS){
   write.csv(nstemi_scenario_df,
