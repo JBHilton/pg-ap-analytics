@@ -117,7 +117,7 @@ rescale_probs <- function(baseline_prob_df,
   }else{
     ac_no_lof_probs <- ac_no_lof_ratio_df %>%
       mutate(value = value * baseline_prob_df$value) %>%
-      add_column(at_value = at_probs$value) %>%
+      add_column(at_value = value * at_probs$value) %>%
       mutate(value = ifelse(grepl("death", variable.name)|grepl("_mi_", variable.name),
                             yes = at_value,
                             no = value)) %>%
