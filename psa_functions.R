@@ -108,21 +108,13 @@ rescale_probs <- function(baseline_prob_df,
   
   # And clopidogrel with no loss of function:
   
-  if (UNIQUE_NO_LOF_PROBS){
-    ac_no_lof_probs <- ac_no_lof_ratio_df %>%
-      mutate(value = ifelse((grepl("death", variable.name)|
-                              grepl("_mi_", variable.name)),
-                            value * at_probs$value,
-                            value * baseline_prob_df$value))
-  }else{
-    ac_no_lof_probs <- ac_no_lof_ratio_df %>%
-      mutate(value = value * baseline_prob_df$value) %>%
-      add_column(at_value = value * at_probs$value) %>%
-      mutate(value = ifelse(grepl("death", variable.name)|grepl("_mi_", variable.name),
-                            yes = at_value,
-                            no = value)) %>%
-      select(c(variable.name, value))
-  }
+  ac_no_lof_probs <- ac_no_lof_ratio_df %>%
+    mutate(ac_value = value * baseline_prob_df$value) %>%
+    mutate(at_value = value * at_probs$value) %>%
+    mutate(value = ifelse(grepl("death", variable.name)|grepl("_mi_", variable.name),
+                          yes = at_value,
+                          no = ac_value)) %>%
+    select(c(variable.name, value))
   
   # Assemble into single probability dataframe:
   prob_df <- rbind(ac_lof_probs %>% select(-odds),
