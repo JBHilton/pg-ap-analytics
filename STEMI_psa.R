@@ -6,7 +6,7 @@ CONVERSIONS_REQUIRED <- FALSE
 
 # Set to true to directly calculate probabilities for the no-LOF subpopulation,
 # or false to use values from other subpopulations
-UNIQUE_NO_LOF_PROBS <- TRUE
+UNIQUE_NO_LOF_PROBS <- FALSE
 
 # Step correction for death in decision tree and Markov model, i.e. average time
 # to death given death occurs within a given year.
@@ -81,7 +81,7 @@ full_names <- sapply(1:(n_subpops*n_states),
 
 #### Now build the decision tree model ####
 
-parameters_STEMI <- read_xlsx("data-inputs/masterfile_070725.xlsx",
+parameters_STEMI <- read_xlsx("data-inputs/masterfile_111025.xlsx",
                               sheet = "Parameters.STEMI") %>% # Skip row 1 since this doesn't match the format of other rows
   rename_all(make.names) %>% # Converts parameter names in valid R names
   rename_all(.funs = function(name){
@@ -137,7 +137,7 @@ rename_utility_variables <- function(name){
   }
 } %>% Vectorize()
 
-uncertainty_df <- read_xlsx("data-inputs/masterfile_070725.xlsx",
+uncertainty_df <- read_xlsx("data-inputs/masterfile_111025.xlsx",
                             sheet = "random") %>%
   rename_all(.funs = function(name){
     name %>%
@@ -226,7 +226,7 @@ multi_results <- lapply(1:n_sample,
                         }) %>%
   bind_rows() %>%
   mutate(icer = inc_cost_dc_hs / inc_util_dc_hs) %>% 
-  summarise(sample_id = c(sample_id, 'mean'),
+  dplyr::summarise(sample_id = c(sample_id, 'mean'),
             across(where(is.numeric), ~ c(., mean(.))))
 end_time <- Sys.time()
 print(paste("PSA for",

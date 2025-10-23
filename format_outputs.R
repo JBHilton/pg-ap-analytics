@@ -1,7 +1,7 @@
 # In this script we load and reformat the different bits of output data into
 # tables of base cases and confidence intervals.
 
-SAVE_OUTPUTS <- TRUE
+SAVE_OUTPUTS <- FALSE
 dir.create("formatted_outputs",
            showWarnings = FALSE)
 
@@ -9,11 +9,11 @@ library(stringr)
 library(tidyverse)
 
 stemi_arm_comparison <- read.csv("outputs/stemi_arm_comparison.csv")
-stemi_psa <- read.csv("outputs/stemi_n_1e+05_psa_stats.csv")
-stemi_prob_ce <- read.csv("outputs/stemi_n_1e+05_acceptance_probability.csv")
+stemi_psa <- read.csv("outputs/stemi_n_10000_psa_stats.csv")
+stemi_prob_ce <- read.csv("outputs/stemi_n_10000_acceptance_probability.csv")
 nstemi_arm_comparison <- read.csv("outputs/nstemi_arm_comparison.csv")
-nstemi_psa <- read.csv("outputs/nstemi_n_1e+05_psa_stats.csv")
-nstemi_prob_ce <- read.csv("outputs/nstemi_n_1e+05_acceptance_probability.csv")
+nstemi_psa <- read.csv("outputs/nstemi_n_10000_psa_stats.csv")
+nstemi_prob_ce <- read.csv("outputs/nstemi_n_10000_acceptance_probability.csv")
 
 # Extra stuff for checking
 stemi_ac_short <- stemi_arm_comparison %>% filter(output_name %in% stemi_psa$output_name) %>% arrange(output_name)

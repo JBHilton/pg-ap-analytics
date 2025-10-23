@@ -201,7 +201,8 @@ markov_df <- rewrite[[2]]
 
 n_tsteps <- time_hor - 1
 example_results <- run_PSA_arm_comparison(parameters_STEMI,
-                                          draw_df)
+                                          draw_df,
+                                          pop = "NSTEMI")
 
 # Check what happens when we do arm comparison with baseline parameters
 det_df <- uncertainty_df %>%
@@ -235,8 +236,8 @@ multi_results <- lapply(1:n_sample,
                         }) %>%
   bind_rows() %>%
   mutate(icer = inc_cost_dc_hs / inc_util_dc_hs) %>% 
-  summarise(sample_id = c(sample_id, 'mean'),
-            across(where(is.numeric), ~ c(., mean(.))))
+  dplyr::summarise(sample_id = c(sample_id, 'mean'),
+                   across(where(is.numeric), ~ c(., mean(.))))
 end_time <- Sys.time()
 print(paste("PSA for",
             n_sample,

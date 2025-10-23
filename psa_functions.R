@@ -10,7 +10,7 @@ prop_male <- parameters_STEMI$value[
 
 # Need to load in mortality table
 if (CASE=="STEMI"){
-  mort_table <- read_xlsx("data-inputs/masterfile_070725.xlsx",
+  mort_table <- read_xlsx("data-inputs/masterfile_111025.xlsx",
                          sheet = "age_sex_dependant_mortality",
                          range = "A12:D52")
 }else{
