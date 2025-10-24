@@ -290,7 +290,7 @@ calculate_acc_prob <- function(utils,
 }
 
 ce_thresh_df <- multi_results %>%
-  summarise(ce_prob = calculate_acc_prob(inc_util_dc_hs, icer))
+  dplyr::summarise(ce_prob = calculate_acc_prob(inc_util_dc_hs, icer))
 
 mr_split <- split(multi_results,
                   multi_results$scenario)
