@@ -14,7 +14,7 @@ AVE_TIME_TO_EVENT <- 0.5
 
 CASE <- "NSTEMI"
 
-SAVE_OUTPUTS <- TRUE
+SAVE_OUTPUTS <- FALSE
 
 dir.create("outputs",
            showWarnings = FALSE)
@@ -193,17 +193,8 @@ uncertainty_df <- read_xlsx("data-inputs/NSTEMI_masterfile_160725.xlsm",
 uncertainty_df <- uncertainty_df[order(match(uncertainty_df$variable.name,
                                              parameters_STEMI$variable.name)), ]
 
-draw_df <- do_PSA_draw(uncertainty_df)
-rewrite <- rewrite_pars_from_draw(parameters_STEMI, draw_df)
-par_df <- rewrite[[1]]
-markov_df <- rewrite[[2]]
-
-# Try multiple draws at once:
-tall_df <- do_tall_PSA_draw(uncertainty_df,
-                            10)
+# Set number of time steps
 n_tsteps <- time_hor - 1
-example_results <- run_PSA_arm_comparison(parameters_STEMI,
-                                          draw_df)
 
 # Check what happens when we do arm comparison with baseline parameters
 det_df <- uncertainty_df %>%
@@ -260,8 +251,8 @@ quantile_from_keyword <- function(dist_name,
     }
     if (dist_name == "gamma"){
       return(qgamma(p,
-                    par1,
-                    par2))
+                    shape = par1,
+                    scale = par2))
     }
     if (dist_name == "lognormal"){
       return(qlnorm(p,
@@ -324,27 +315,33 @@ uncertainty_df <- uncertainty_df %>%
                           unlist() )) %>%
   rowwise()
 
+# Reorder so that when we take common lines with parameter dataframe everything
+# is in the correct row:
+uncertainty_df <- uncertainty_df[order(match(uncertainty_df$variable.name,
+                                             parameters_STEMI$variable.name)), ]
+
 start_time <- Sys.time()
 dsa_results <- lapply(1:nrow(dsa_options),
-                        FUN = function(i){
-                          draw_i <- make_one_way_pars(uncertainty_df,
-                                                      dsa_options$direction[i],
-                                                      dsa_options$varname[i]
-                                                      )
-                          psa_results <- run_PSA_arm_comparison(parameters_STEMI,
-                                                                draw_i)
-                          res_i <- psa_results[[1]] %>%
-                            mutate(scenario = paste(dsa_options$direction[i],
-                                                    "_",
-                                                    dsa_options$varname[i],
-                                                    sep = "")
-                                   ) %>%
-                                   relocate(scenario, .before = life_years_sc) %>%
-                            cbind(psa_results[[3]] %>% # Attach event counts
-                                    pivot_wider(names_from = arm, 
-                                                values_from = c(-arm)))
-                          return(res_i)
-                        }) %>%
+                      FUN = function(i){
+                        draw_i <- make_one_way_pars(uncertainty_df,
+                                                    dsa_options$direction[i],
+                                                    dsa_options$varname[i]
+                        )
+                        arm_results <- run_PSA_arm_comparison(parameters_STEMI,
+                                                              draw_i,
+                                                              pop = "NSTEMI")
+                        res_i <- arm_results[[1]] %>%
+                          mutate(scenario = paste(dsa_options$direction[i],
+                                                  "_",
+                                                  dsa_options$varname[i],
+                                                  sep = "")
+                          ) %>%
+                          relocate(scenario, .before = life_years_sc) %>%
+                          cbind(arm_results[[3]] %>% # Attach event counts
+                                  pivot_wider(names_from = arm, 
+                                              values_from = c(-arm)))
+                        return(res_i)
+                      }) %>%
   bind_rows() %>%
   mutate(icer = inc_cost_dc_hs / inc_util_dc_hs)
 end_time <- Sys.time()
