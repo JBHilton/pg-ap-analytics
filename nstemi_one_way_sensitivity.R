@@ -14,7 +14,7 @@ AVE_TIME_TO_EVENT <- 0.5
 
 CASE <- "NSTEMI"
 
-SAVE_OUTPUTS <- FALSE
+SAVE_OUTPUTS <- TRUE
 
 dir.create("outputs",
            showWarnings = FALSE)
@@ -183,7 +183,6 @@ uncertainty_df <- read_xlsx("data-inputs/NSTEMI_masterfile_160725.xlsm",
            str_replace_all("bleeding", "bleed") %>%
            str_replace_all("nofurther", "no")) %>%
   mutate(distribution = str_to_lower(distribution)) %>%
-  # mutate(variable.name = map(variable.name, rename_utility_variables)) %>%
   mutate(SE = as.numeric(SE),
          par1 = as.numeric(par1),
          par2 = as.numeric(par2)) # Convert values from characters to numbers
@@ -293,6 +292,11 @@ pars_to_vary <- c("prob_test_order",
                   "u_dec_dyspnoea",
                   "rr_death_ac_no_lof", 
                   "rr_mi_ac_no_lof")
+
+pars_to_vary <- c(uncertainty_df$variable.name,
+                  "poct_cost",
+                  "day_cost_tica",
+                  "day_cost_clop")
 # 
 # distributions <- uncertainty_df %>%
 #   filter(variable.name %in% pars_to_vary$varname) %>%
@@ -353,6 +357,6 @@ print(paste("One-way sensitivity analysis conducted in",
 if (SAVE_OUTPUTS){
   fwrite(dsa_results,
          file = paste(SAVE_FILEPATH,
-                      "_one_way_sensitivity_analysis.csv",
+                      "one_way_sensitivity_analysis.csv",
                       sep = ""))
 }

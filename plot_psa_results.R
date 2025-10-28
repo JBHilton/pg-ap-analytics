@@ -60,13 +60,18 @@ stemi_ce_plane_plot <- ggplot(multi_results[1:n_sample, ],
   geom_point(data = det_cost_util,
              aes(x = util,
                  y = cost,
-                 color = "red"),
+                 color = "#C00000"),
              size = 5.,
              shape = 18) +
+  geom_hline(aes(yintercept = 0),
+             alpha = .5) +
+  geom_vline(aes(xintercept = 0),
+             alpha = .5) +
   geom_line(data = ce_line_df,
             aes(x=x,
                 y=y,
-                color = factor(ce_threshold))) +
+                color = factor(ce_threshold)),
+            linewidth = 1) +
   scale_x_continuous(breaks = seq(xlim[1], xlim[2], .05),
                      limits = xlim) +
   scale_y_continuous(breaks = seq(ylim[1], ylim[2], 200),
@@ -74,11 +79,14 @@ stemi_ce_plane_plot <- ggplot(multi_results[1:n_sample, ],
   scale_color_manual(labels = c("CE threshold £20,000",
                                 "CE threshold £30,000",
                                 "Point estimate"),
-                     values = c("green",
-                                "orange",
-                                "red")) +
+                     values = c("#156082",
+                                "#D56C25",
+                                "#C00000")) +
   theme(legend.title=element_blank(),
-        text = element_text(size = 20)) +
+        legend.position = "inside",
+        legend.position.inside = c(.8, .1),
+        text = element_text(size = 20),
+        axis.text = element_text(colour = "black")) +
   xlab("Incremental utility (QALYs)") +
   ylab("Incremental cost (£s)")
 
@@ -86,8 +94,52 @@ ggsave(paste("plots/",
              SAVE_FILEPATH,
              "ce_plane.png", sep=""),
        plot = stemi_ce_plane_plot,
-       width = 12,
-       height = 10)
+       width = 10,
+       height = 10,
+       dpi = 1200)
+
+stemi_ce_plane_plot_20k <- ggplot(multi_results[1:n_sample, ],
+                              aes(x = inc_util_dc_hs,
+                                  y = inc_cost_dc_hs)) +
+  geom_point(size = .1) +
+  geom_point(data = det_cost_util,
+             aes(x = util,
+                 y = cost,
+                 color = "#C00000"),
+             size = 5.,
+             shape = 18) +
+  geom_hline(aes(yintercept = 0),
+             alpha = .5) +
+  geom_vline(aes(xintercept = 0),
+             alpha = .5) +
+  geom_line(data = ce_line_df %>% filter(ce_threshold < 25000),
+            aes(x=x,
+                y=y,
+                color = "#156082"),
+            linewidth = 1) +
+  scale_x_continuous(breaks = seq(xlim[1], xlim[2], .05),
+                     limits = xlim) +
+  scale_y_continuous(breaks = seq(ylim[1], ylim[2], 200),
+                     limits = ylim) +
+  scale_color_manual(labels = c("Willingness to pay threshold",
+                                "Point estimate"),
+                     values = c("#156082",
+                                "#C00000")) +
+  theme(legend.title=element_blank(),
+        legend.position = "inside",
+        legend.position.inside = c(.8, .1),
+        text = element_text(size = 20),
+        axis.text = element_text(colour = "black")) +
+  xlab("Incremental utility (QALYs)") +
+  ylab("Incremental cost (£s)")
+
+ggsave(paste("plots/",
+             SAVE_FILEPATH,
+             "ce_plane_20k_only.png", sep=""),
+       plot = stemi_ce_plane_plot_20k,
+       width = 10,
+       height = 10,
+       dpi = 1200)
 
 ce_thresh_df <- read_csv(file = paste("outputs/",
                                       SAVE_FILEPATH,
@@ -103,7 +155,8 @@ stemi_ce_thresh_plot <- ggplot(ce_thresh_df,
                   ymax = upper_95),
               alpha = 0.2) +
   theme_bw() +
-  theme(text = element_text(size = 20)) +
+  theme(text = element_text(size = 20),
+        axis.text = element_text(colour = "black")) +
   scale_y_continuous(labels = scales::percent,
                      limits = c(0, 1)) +
   scale_x_continuous(breaks = seq(0, 18000, 2000)) +
@@ -115,7 +168,8 @@ ggsave(paste("plots/",
              "ce_probability.png", sep=""),
        plot = stemi_ce_thresh_plot,
        width = 10,
-       height = 10)
+       height = 10,
+       dpi = 1200)
 
 #### Now do NSTEMI ####
 
@@ -159,25 +213,33 @@ nstemi_ce_plane_plot <- ggplot(multi_results[1:n_sample, ],
   geom_point(data = det_cost_util,
              aes(x = util,
                  y = cost,
-                 color = "red"),
+                 color = "#C00000"),
              size = 5.,
              shape = 18) +
-  geom_line(data = ce_line_df,
-            aes(x=x,
-                y=y,
-                color = factor(ce_threshold))) +
   scale_x_continuous(breaks = seq(xlim[1], xlim[2], .05),
                      limits = xlim) +
   scale_y_continuous(breaks = seq(ylim[1], ylim[2], 200),
                      limits = ylim) +
+  geom_line(data = ce_line_df,
+            aes(x=x,
+                y=y,
+                color = factor(ce_threshold)),
+            linewidth = 1) +
+  geom_hline(aes(yintercept = 0),
+             alpha = .5) +
+  geom_vline(aes(xintercept = 0),
+             alpha = .5) +
   scale_color_manual(labels = c("CE threshold £20,000",
                                 "CE threshold £30,000",
                                 "Point estimate"),
-                     values = c("green",
-                                "orange",
-                                "red")) +
+                     values = c("#156082",
+                                "#D56C25",
+                                "#C00000")) +
   theme(legend.title=element_blank(),
-        text = element_text(size = 20)) +
+        legend.position = "inside",
+        legend.position.inside = c(.8, .1),
+        text = element_text(size = 20),
+        axis.text = element_text(colour = "black")) +
   xlab("Incremental utility (QALYs)") +
   ylab("Incremental cost (£s)")
 
@@ -185,8 +247,52 @@ ggsave(paste("plots/",
              SAVE_FILEPATH,
              "ce_plane.png", sep=""),
        plot = nstemi_ce_plane_plot,
-       width = 12,
-       height = 10)
+       width = 10,
+       height = 10,
+       dpi = 1200)
+
+nstemi_ce_plane_plot_20k <- ggplot(multi_results[1:n_sample, ],
+                                  aes(x = inc_util_dc_hs,
+                                      y = inc_cost_dc_hs)) +
+  geom_point(size = .1) +
+  geom_point(data = det_cost_util,
+             aes(x = util,
+                 y = cost,
+                 color = "#C00000"),
+             size = 5.,
+             shape = 18) +
+  geom_hline(aes(yintercept = 0),
+             alpha = .5) +
+  geom_vline(aes(xintercept = 0),
+             alpha = .5) +
+  geom_line(data = ce_line_df %>% filter(ce_threshold < 25000),
+            aes(x=x,
+                y=y,
+                color = "#156082"),
+            linewidth = 1) +
+  scale_x_continuous(breaks = seq(xlim[1], xlim[2], .05),
+                     limits = xlim) +
+  scale_y_continuous(breaks = seq(ylim[1], ylim[2], 200),
+                     limits = ylim) +
+  scale_color_manual(labels = c("Willingness to pay threshold",
+                                "Point estimate"),
+                     values = c("#156082",
+                                "#C00000")) +
+  theme(legend.title=element_blank(),
+        legend.position = "inside",
+        legend.position.inside = c(.8, .1),
+        text = element_text(size = 20),
+        axis.text = element_text(colour = "black")) +
+  xlab("Incremental utility (QALYs)") +
+  ylab("Incremental cost (£s)")
+
+ggsave(paste("plots/",
+             SAVE_FILEPATH,
+             "ce_plane_20k_only.png", sep=""),
+       plot = nstemi_ce_plane_plot_20k,
+       width = 10,
+       height = 10,
+       dpi = 1200)
 
 ce_thresh_df <- read_csv(file = paste("outputs/",
                                       SAVE_FILEPATH,
@@ -202,7 +308,8 @@ nstemi_ce_thresh_plot <- ggplot(ce_thresh_df,
                   ymax = upper_95),
               alpha = 0.2) +
   theme_bw() +
-  theme(text = element_text(size = 20)) +
+  theme(text = element_text(size = 20),
+        axis.text = element_text(colour = "black")) +
   scale_y_continuous(labels = scales::percent,
                      limits = c(0, 1)) +
   scale_x_continuous(breaks = seq(0, 18000, 2000)) +
@@ -214,4 +321,50 @@ ggsave(paste("plots/",
              "ce_probability.png", sep=""),
        plot = nstemi_ce_thresh_plot,
        width = 10,
-       height = 10)
+       height = 10,
+       dpi = 1200)
+
+stemi_ce_thresh_df <- read_csv(file = "outputs/stemi_n_1e+05_acceptance_probability.csv") %>%
+  filter(ce_threshold < 18000) %>%
+  mutate(Population = "STEMI")
+nstemi_ce_thresh_df <- read_csv(file = "outputs/nstemi_n_1e+05_acceptance_probability.csv") %>%
+  filter(ce_threshold < 18000) %>%
+  mutate(Population = "NSTEMI")
+ce_thresh_df <- rbind(stemi_ce_thresh_df,
+                      nstemi_ce_thresh_df)
+
+both_ce_thresh_plot <- ggplot(ce_thresh_df,
+                                aes(x = ce_threshold,
+                                    y = acceptance_prob,
+                                    colour = Population)) +
+  geom_point() +
+  geom_ribbon(aes(ymin = lower_95,
+                  ymax = upper_95),
+              alpha = 0.2) +
+  theme_bw() +
+  theme(text = element_text(size = 20),
+        axis.text = element_text(colour = "black")) +
+  scale_y_continuous(labels = scales::percent,
+                     limits = c(0, 1)) +
+  scale_x_continuous(breaks = seq(0, 18000, 2000)) +
+  scale_color_manual(values = c("#156082",
+                                "#D56C25")) +
+  xlab("Cost-effectiveness threshold (£)") +
+  ylab("Cost-effectiveness probability")
+
+ggsave(paste("plots/both_groups_ce_probability.png", sep=""),
+       plot = both_ce_thresh_plot,
+       width = 10,
+       height = 10,
+       dpi = 1200)
+
+#### Now look at sensitivity analyses ####
+n_sample <- 10000
+
+#### STEMI #####
+SAVE_FILEPATH <- paste("stemi_n_", n_sample, sep="")
+scenario_results <- read_csv(file = paste("outputs/",
+                                       SAVE_FILEPATH,
+                                       "_scenario_psa_stats.csv",
+                                       sep = ""))
+
