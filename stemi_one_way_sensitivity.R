@@ -267,32 +267,10 @@ make_one_way_pars <- function(u_df,
   return(u_df)
 }
 
-pars_to_vary <- c("prob_test_order",
-                  "prob_test_followed",
-                  "prevalence_lof_base_case",
-                  "prob_stroke_ac_lof",
-                  "prob_mi_ac_lof",
-                  "prob_minor_bleed_ac_lof", 
-                  "prob_major_bleed_ac_lof",
-                  "poct_cost",
-                  "day_cost_tica",
-                  "day_cost_clop",
-                  "utility_no_event",
-                  "annual_utility_dec_minor_bleed",
-                  "annual_utility_dec_major_bleed",
-                  "u_dec_dyspnoea",
-                  "rr_death_ac_no_lof", 
-                  "rr_mi_ac_no_lof")
-
 pars_to_vary <- c(uncertainty_df$variable.name,
                   "poct_cost",
                   "day_cost_tica",
                   "day_cost_clop")
-# 
-# distributions <- uncertainty_df %>%
-#   filter(variable.name %in% pars_to_vary$varname) %>%
-#   arrange(variable.name, pars_to_vary$varname) %>%
-#   select(distribution)
 
 dsa_options <- data.frame(varname = pars_to_vary) %>%
   crossing(direction = c("high",

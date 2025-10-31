@@ -88,9 +88,19 @@ varnames <- read_xlsx("data-inputs/masterfile_111025.xlsx",
   select(variable.name, parameter.list) %>%
   dplyr::rename(scenario = variable.name) %>%
   add_row(scenario = c("prob_nevent_to_stk",
-                       "prob_nevent_to_mi"),
+                       "prob_nevent_to_rinfarc",
+                       "utility_no_event",
+                       "utility_mi",
+                       "utility_post_mi",
+                       "utility_stroke",
+                       "utility_post_stroke"),
           parameter.list = c("Stroke probability in Markov model",
-                             "Reinfarction probability in Markov model"))
+                             "Reinfarction probability in Markov model",
+                             "Utility of no event",
+                             "Utility of reinfarction",
+                             "Utility post-reinfarction",
+                             "Utility of stroke",
+                             "Utility post-stroke"))
 
 stemi_arm_comparison <- read.csv("outputs/stemi_arm_comparison.csv")
 baseline_inc_nmb <- stemi_arm_comparison$inc[
@@ -112,13 +122,13 @@ stemi_dsa_results <- read.csv(
   pivot_longer(cols = c(High, Low),
                names_to = "direction",
                values_to = "inc_nmb") %>%
-  filter(width > 20) %>%
-  mutate(diff = inc_nmb - baseline_inc_nmb) %>%
+  mutate(diff = 100 * (inc_nmb - baseline_inc_nmb) / baseline_inc_nmb) %>%
   left_join(varnames, by = c("scenario" = "scenario")) %>%
   mutate(scenario = factor(parameter.list) %>%
            fct_reorder(width))
 
-p_stemi <-stemi_dsa_results %>%
+p_stemi_high <-stemi_dsa_results %>%
+  filter(width > 20) %>%
   ggplot(aes(x = inc_nmb,
              y = scenario,
              fill = direction)) +
@@ -131,11 +141,64 @@ p_stemi <-stemi_dsa_results %>%
   xlab("Incremental net monetary benefit") +
   ylab("")
 
-ggsave(paste("plots/stemi_dsa_tornado.png", sep=""),
-       plot = p_stemi,
+p_stemi_low <-stemi_dsa_results %>%
+  filter(width <= 20) %>%
+  ggplot(aes(x = inc_nmb,
+             y = scenario,
+             fill = direction)) +
+  geom_col(orientation = "y") +
+  geom_vline(aes(xintercept = baseline_inc_nmb),
+             alpha = .5) +
+  scale_x_continuous(trans = scales::trans_new("shift",
+                                               transform = function(x) {x - baseline_inc_nmb},
+                                               inverse = function(x) {x + baseline_inc_nmb})) +
+  xlab("Incremental net monetary benefit") +
+  ylab("")
+
+p_stemi_pc_high <- stemi_dsa_results %>%
+  filter(width > 20) %>%
+  ggplot(aes(x = diff,
+             y = scenario,
+             fill = direction)) +
+  geom_col(orientation = "y") +
+  geom_vline(aes(xintercept = 0.),
+             alpha = .5) +
+  xlab("% difference in INMB") +
+  ylab("")
+
+p_stemi_pc_low <- stemi_dsa_results %>%
+  filter(width <= 20) %>%
+  ggplot(aes(x = diff,
+             y = scenario,
+             fill = direction)) +
+  geom_col(orientation = "y") +
+  geom_vline(aes(xintercept = 0.),
+             alpha = .5) +
+  xlab("% difference in INMB") +
+  ylab("")
+
+
+
+ggsave(paste("plots/stemi_dsa_tornado_high_importance.png", sep=""),
+       plot = p_stemi_high,
        width = 10,
        height = 10,
-       dpi = 1200)
+       dpi = 300)
+ggsave(paste("plots/stemi_dsa_tornado_low_importance.png", sep=""),
+       plot = p_stemi_low,
+       width = 10,
+       height = 10,
+       dpi = 300)
+ggsave(paste("plots/stemi_dsa_tornado_high_importance_pc.png", sep=""),
+       plot = p_stemi_pc_high,
+       width = 10,
+       height = 10,
+       dpi = 300)
+ggsave(paste("plots/stemi_dsa_tornado_low_importance_pc.png", sep=""),
+       plot = p_stemi_pc_low,
+       width = 10,
+       height = 10,
+       dpi = 300)
 
 
 
@@ -180,11 +243,19 @@ varnames <- read_xlsx("data-inputs/NSTEMI_masterfile_160725.xlsm",
   select(variable.name, parameter.list) %>%
   dplyr::rename(scenario = variable.name) %>%
   add_row(scenario = c("prob_nevent_to_stk",
-                       "prob_nevent_to_mi",
-                       "utility_post_mi"),
+                       "prob_nevent_to_rinfarc",
+                       "utility_no_event",
+                       "utility_mi",
+                       "utility_post_mi",
+                       "utility_stroke",
+                       "utility_post_stroke"),
           parameter.list = c("Stroke probability in Markov model",
                              "Reinfarction probability in Markov model",
-                             "Utiliy post-reinfarction"))
+                             "Utility of no event",
+                             "Utility of reinfarction",
+                             "Utility post-reinfarction",
+                             "Utility of stroke",
+                             "Utility post-stroke"))
 
 nstemi_arm_comparison <- read.csv("outputs/nstemi_arm_comparison.csv")
 baseline_inc_nmb <- nstemi_arm_comparison$inc[
@@ -206,13 +277,13 @@ nstemi_dsa_results <- read.csv(
   pivot_longer(cols = c(High, Low),
                names_to = "direction",
                values_to = "inc_nmb") %>%
-  filter(width > 20) %>%
-  mutate(diff = inc_nmb - baseline_inc_nmb) %>%
+  mutate(diff = 100 * (inc_nmb - baseline_inc_nmb) / baseline_inc_nmb) %>%
   left_join(varnames, by = c("scenario" = "scenario")) %>%
   mutate(scenario = factor(parameter.list) %>%
            fct_reorder(width))
 
-p_nstemi <- nstemi_dsa_results %>%
+p_nstemi_high <-nstemi_dsa_results %>%
+  filter(width > 20) %>%
   ggplot(aes(x = inc_nmb,
              y = scenario,
              fill = direction)) +
@@ -225,9 +296,61 @@ p_nstemi <- nstemi_dsa_results %>%
   xlab("Incremental net monetary benefit") +
   ylab("")
 
-ggsave(paste("plots/nstemi_dsa_tornado.png", sep=""),
-       plot = p_nstemi,
+p_nstemi_low <-nstemi_dsa_results %>%
+  filter(width <= 20) %>%
+  ggplot(aes(x = inc_nmb,
+             y = scenario,
+             fill = direction)) +
+  geom_col(orientation = "y") +
+  geom_vline(aes(xintercept = baseline_inc_nmb),
+             alpha = .5) +
+  scale_x_continuous(trans = scales::trans_new("shift",
+                                               transform = function(x) {x - baseline_inc_nmb},
+                                               inverse = function(x) {x + baseline_inc_nmb})) +
+  xlab("Incremental net monetary benefit") +
+  ylab("")
+
+p_nstemi_pc_high <- nstemi_dsa_results %>%
+  filter(width > 20) %>%
+  ggplot(aes(x = diff,
+             y = scenario,
+             fill = direction)) +
+  geom_col(orientation = "y") +
+  geom_vline(aes(xintercept = 0.),
+             alpha = .5) +
+  xlab("% difference in INMB") +
+  ylab("")
+
+p_nstemi_pc_low <- nstemi_dsa_results %>%
+  filter(width <= 20) %>%
+  ggplot(aes(x = diff,
+             y = scenario,
+             fill = direction)) +
+  geom_col(orientation = "y") +
+  geom_vline(aes(xintercept = 0.),
+             alpha = .5) +
+  xlab("% difference in INMB") +
+  ylab("")
+
+
+
+ggsave(paste("plots/nstemi_dsa_tornado_high_importance.png", sep=""),
+       plot = p_nstemi_high,
        width = 10,
        height = 10,
-       dpi = 1200)
-
+       dpi = 300)
+ggsave(paste("plots/nstemi_dsa_tornado_low_importance.png", sep=""),
+       plot = p_nstemi_low,
+       width = 10,
+       height = 10,
+       dpi = 300)
+ggsave(paste("plots/nstemi_dsa_tornado_high_importance_pc.png", sep=""),
+       plot = p_nstemi_pc_high,
+       width = 10,
+       height = 10,
+       dpi = 300)
+ggsave(paste("plots/nstemi_dsa_tornado_low_importance_pc.png", sep=""),
+       plot = p_nstemi_pc_low,
+       width = 10,
+       height = 10,
+       dpi = 300)

@@ -373,7 +373,7 @@ run_PSA_arm_comparison <- function(par_df,
   }
   
   # Get cost_pci, baseline cost applied in all courses
-  cost_pci <- par_df$value[par_df$variable.name=="cost_pci"]
+  cost_pci <- draw_df$draw[draw_df$variable.name=="cost_pci"]
   
   # Get loading doses for drugs. Note that ac_lof and ac_no_lof are identical, but
   # for formatting purposes it's more convenient to use the same subpopulations as
@@ -453,7 +453,7 @@ run_PSA_arm_comparison <- function(par_df,
     filter(!grepl("_ac", variable.name)) %>% # Drop any derived drug-specific values
     filter(!grepl("_at", variable.name)) %>%
     filter(!grepl("_ap", variable.name)) %>%
-    filter(!grepl("annual", variable.name)) %>% # Drop any annual-scale values
+    filter(!grepl("duration_", variable.name)) %>% # Drop any annual-scale values
     add_row(variable.name = "death",
             value = 0) # Apply no_event utility before death, 0 afterwards
   
@@ -461,6 +461,10 @@ run_PSA_arm_comparison <- function(par_df,
   # convert bleed decrements to utilities
   # NOTE: Utility decrements for bleed events are loaded in in units of years so
   # do not need to be converted.
+  duration_minor_bleed <- par_df$value[
+    which(par_df$variable.name=="duration_minor_bleed")] / 365
+  duration_major_bleed <- par_df$value[
+    which(par_df$variable.name=="duration_major_bleed")] / 365
   duration_dyspnoea <- par_df$value[
     which(par_df$variable.name=="duration_dyspnoea")] / 365
   event_utilities <- event_utilities %>%
@@ -468,11 +472,11 @@ run_PSA_arm_comparison <- function(par_df,
             value = 1 - duration_dyspnoea * event_utilities$value[
               which(event_utilities$variable.name=="u_dec_dyspnoea")]) %>%
     add_row(variable.name = "major_bleed",
-            value = 1 - event_utilities$value[
-              which(event_utilities$variable.name=="dec_major_bleed_*_(duration_major_bleed/365)")]) %>%
+            value = 1 - duration_major_bleed * event_utilities$value[
+              which(event_utilities$variable.name=="annual_dec_major_bleed")]) %>%
     add_row(variable.name = "minor_bleed",
-            value = 1 - event_utilities$value[
-              which(event_utilities$variable.name=="dec_minor_bleed_*_(duration_minor_bleed/365)")]) %>%
+            value = 1 - duration_minor_bleed * event_utilities$value[
+              which(event_utilities$variable.name=="annual_dec_minor_bleed")]) %>%
     filter(!grepl("dec_", variable.name))
   
   # Similar formula to get costs for DT model:
@@ -512,13 +516,13 @@ run_PSA_arm_comparison <- function(par_df,
   # purposes
   smr_vals <- smr_df %>%
     select(c(variable.name,
-             Value)) %>%
+             draw)) %>%
     mutate(variable.name = variable.name %>%
              str_replace_all("smr_",
                              "") %>%
              str_replace_all("_further",
                              "")) %>%
-    spread(variable.name, Value)
+    spread(variable.name, draw)
   
   # SA7: baseline SMR for ACS/reinfarction reduced by 2-%
   if (scenario == "SA7"){
