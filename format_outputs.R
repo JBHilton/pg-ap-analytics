@@ -397,7 +397,7 @@ if (SAVE_OUTPUTS){
 stemi_sa_baseline <- read.csv("outputs/stemi_scenario_central_estimate.csv") %>%
   mutate(total_nmb_sc = stemi_size * nmb_sc,
          total_nmb_pc = stemi_size * nmb_pc)
-stemi_sa_psa <- read.csv("outputs/stemi_n_1000_scenario_psa_stats.csv") %>%
+stemi_sa_psa <- read.csv("outputs/stemi_n_10000_scenario_psa_stats.csv") %>%
   mutate(total_nmb_sc_mean = stemi_size * nmb_sc_mean,
          total_nmb_sc_L = stemi_size * nmb_sc_L,
          total_nmb_sc_U = stemi_size * nmb_sc_U,
@@ -408,7 +408,7 @@ stemi_scenario_prob_ce <- read.csv("outputs/stemi_n_1000_psa_acceptance_probabil
 nstemi_sa_baseline <- read.csv("outputs/nstemi_scenario_central_estimate.csv") %>%
   mutate(total_nmb_sc = stemi_size * nmb_sc,
          total_nmb_pc = stemi_size * nmb_pc)
-nstemi_sa_psa <- read.csv("outputs/nstemi_n_1000_scenario_psa_stats.csv") %>%
+nstemi_sa_psa <- read.csv("outputs/nstemi_n_10000_scenario_psa_stats.csv") %>%
   mutate(total_nmb_sc_mean = stemi_size * nmb_sc_mean,
          total_nmb_sc_L = stemi_size * nmb_sc_L,
          total_nmb_sc_U = stemi_size * nmb_sc_U,
@@ -532,16 +532,16 @@ stemi_scenario_df <- stemi_scenario_df %>%
   mutate(inc_util = ifelse(intervention == "standard DAPT",
                            NA,
                            paste(format(round(stemi_sa_baseline$inc_util[scenario],
-                                              2),
-                                        nsmall = 2),
+                                              3),
+                                        nsmall = 3),
                                  " (",
                                  format(round(stemi_sa_psa$util_inc_L[scenario],
-                                              2),
-                                        nsmall = 2),
+                                              3),
+                                        nsmall = 3),
                                  ", ",
                                  format(round(stemi_sa_psa$util_inc_U[scenario],
-                                              2),
-                                        nsmall = 2),
+                                              3),
+                                        nsmall = 3),
                                  ")",
                                  sep="")
   )) %>%
@@ -641,16 +641,16 @@ nstemi_scenario_df <- nstemi_scenario_df %>%
   mutate(inc_util = ifelse(intervention == "standard DAPT",
                            NA,
                            paste(format(round(nstemi_sa_baseline$inc_util[scenario],
-                                              2),
-                                        nsmall = 2),
+                                              3),
+                                        nsmall = 3),
                                  " (",
                                  format(round(nstemi_sa_psa$util_inc_L[scenario],
-                                              2),
-                                        nsmall = 2),
+                                              3),
+                                        nsmall = 3),
                                  ", ",
                                  format(round(nstemi_sa_psa$util_inc_U[scenario],
-                                              2),
-                                        nsmall = 2),
+                                              3),
+                                        nsmall = 3),
                                  ")",
                                  sep="")
   )) %>%

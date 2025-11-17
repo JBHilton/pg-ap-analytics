@@ -3,6 +3,9 @@
 
 dir.create("plots", showWarnings = FALSE)
 
+# Set dpi to save figures
+figure_dpi <- 1200
+
 library("data.table")
 library("dplyr")
 library("expm")
@@ -100,7 +103,39 @@ varnames <- read_xlsx("data-inputs/masterfile_111025.xlsx",
                              "Utility of reinfarction",
                              "Utility post-reinfarction",
                              "Utility of stroke",
-                             "Utility post-stroke"))
+                             "Utility post-stroke")) %>%
+  mutate(parameter.list = parameter.list %>%
+           str_replace_all("_",
+                           ", ") %>%
+           str_replace_all("  ",
+                           " ") %>%
+           str_replace_all("Odds Ratio",
+                           "OR") %>%
+           str_replace_all("Risk Ratio",
+                           "RR") %>%
+           str_replace_all("annual utility decrement A",
+                           "Annual utility decrement due to dyspnoea A") %>%
+           str_replace_all("AC", "clopidogrel") %>%
+           str_replace_all("AT", "ticagrelor") %>%
+           str_replace_all("AP", "prasugrel") %>%
+           str_replace_all("Cost, PCI", "Cost of PCI") %>%
+           str_replace_all("Gendrive test price", "POC test cost") %>%
+           str_replace_all("utility decrements", "Utility decrement,") %>%
+           str_replace_all(", risk", " risk") %>%
+           str_replace_all(", ratio", " ratio") %>%
+           str_replace_all("decrement apply for", "decrement,") %>%
+           str_to_sentence() %>%
+           str_replace_all("pci", "PCI") %>%
+           str_replace_all("Poc", "POC") %>%
+           str_replace_all("Or,", "OR,") %>%
+           str_replace_all("Smr,", "SMR,") %>%
+           str_replace_all("Odds ratio", "OR") %>%
+           str_replace_all("markov", "Markov") %>%
+           str_replace_all("mi,", "reinfarction,") %>%
+           str_replace_all("Stroke with clopidogrel", "Stroke probability in decision tree, clopidogrel") %>%
+           str_replace_all("MI with clopidogrel", "Reinfarction probability in decision tree, clopidogrel") %>%
+           str_replace_all("Major bleeding with clopidogrel", "Major bleed probability in decision tree, clopidogrel") %>%
+           str_replace_all("Minor bleeding with clopidogrel", "Minor bleed probability in decision tree, clopidogrel"))
 
 stemi_arm_comparison <- read.csv("outputs/stemi_arm_comparison.csv")
 baseline_inc_nmb <- stemi_arm_comparison$inc[
@@ -110,34 +145,37 @@ stemi_dsa_results <- read.csv(
   file = "outputs/stemi_one_way_sensitivity_analysis.csv") %>%
   select(c(scenario,
            inc_nmb)) %>%
-  mutate(direction = ifelse(grepl("high", scenario),
+  mutate(Direction = ifelse(grepl("high", scenario),
                             "High",
                             "Low")) %>%
   mutate(scenario = str_replace(scenario,
                                 "high_|low_",
                                 "")) %>%
-  pivot_wider(names_from = direction,
+  pivot_wider(names_from = Direction,
               values_from = inc_nmb) %>%
   mutate(width = abs(High - Low)) %>%
   pivot_longer(cols = c(High, Low),
-               names_to = "direction",
+               names_to = "Direction",
                values_to = "inc_nmb") %>%
   mutate(diff = 100 * (inc_nmb - baseline_inc_nmb) / baseline_inc_nmb) %>%
   left_join(varnames, by = c("scenario" = "scenario")) %>%
   mutate(scenario = factor(parameter.list) %>%
            fct_reorder(width))
 
-p_stemi_high <-stemi_dsa_results %>%
+p_stemi_high <- stemi_dsa_results %>%
   filter(width > 20) %>%
   ggplot(aes(x = inc_nmb,
              y = scenario,
-             fill = direction)) +
+             fill = Direction)) +
   geom_col(orientation = "y") +
   geom_vline(aes(xintercept = baseline_inc_nmb),
              alpha = .5) +
   scale_x_continuous(trans = scales::trans_new("shift",
                                                transform = function(x) {x - baseline_inc_nmb},
-                                               inverse = function(x) {x + baseline_inc_nmb})) +
+                                               inverse = function(x) {x + baseline_inc_nmb}),) +
+  theme(text = element_text(size = 20),
+        axis.text.y = element_text(angle = 22.5)) +
+  theme(plot.margin = unit(c(0,0,3,0), "cm")) +
   xlab("Incremental net monetary benefit") +
   ylab("")
 
@@ -145,13 +183,16 @@ p_stemi_low <-stemi_dsa_results %>%
   filter(width <= 20) %>%
   ggplot(aes(x = inc_nmb,
              y = scenario,
-             fill = direction)) +
+             fill = Direction)) +
   geom_col(orientation = "y") +
   geom_vline(aes(xintercept = baseline_inc_nmb),
              alpha = .5) +
   scale_x_continuous(trans = scales::trans_new("shift",
                                                transform = function(x) {x - baseline_inc_nmb},
                                                inverse = function(x) {x + baseline_inc_nmb})) +
+  theme(text = element_text(size = 20),
+        axis.text.y = element_text(angle = 22.5)) +
+  theme(plot.margin = unit(c(0,0,3,0), "cm")) +
   xlab("Incremental net monetary benefit") +
   ylab("")
 
@@ -159,10 +200,13 @@ p_stemi_pc_high <- stemi_dsa_results %>%
   filter(width > 20) %>%
   ggplot(aes(x = diff,
              y = scenario,
-             fill = direction)) +
+             fill = Direction)) +
   geom_col(orientation = "y") +
   geom_vline(aes(xintercept = 0.),
              alpha = .5) +
+  theme(text = element_text(size = 20),
+        axis.text.y = element_text(angle = 22.5)) +
+  theme(plot.margin = unit(c(0,0,3,0), "cm")) +
   xlab("% difference in INMB") +
   ylab("")
 
@@ -170,10 +214,13 @@ p_stemi_pc_low <- stemi_dsa_results %>%
   filter(width <= 20) %>%
   ggplot(aes(x = diff,
              y = scenario,
-             fill = direction)) +
+             fill = Direction)) +
   geom_col(orientation = "y") +
   geom_vline(aes(xintercept = 0.),
              alpha = .5) +
+  theme(text = element_text(size = 20),
+        axis.text.y = element_text(angle = 22.5)) +
+  theme(plot.margin = unit(c(0,0,3,0), "cm")) +
   xlab("% difference in INMB") +
   ylab("")
 
@@ -181,24 +228,24 @@ p_stemi_pc_low <- stemi_dsa_results %>%
 
 ggsave(paste("plots/stemi_dsa_tornado_high_importance.png", sep=""),
        plot = p_stemi_high,
-       width = 10,
+       width = 15,
        height = 10,
-       dpi = 300)
+       dpi = figure_dpi)
 ggsave(paste("plots/stemi_dsa_tornado_low_importance.png", sep=""),
        plot = p_stemi_low,
-       width = 10,
+       width = 15,
        height = 10,
-       dpi = 300)
+       dpi = figure_dpi)
 ggsave(paste("plots/stemi_dsa_tornado_high_importance_pc.png", sep=""),
        plot = p_stemi_pc_high,
-       width = 10,
+       width = 15,
        height = 10,
-       dpi = 300)
+       dpi = figure_dpi)
 ggsave(paste("plots/stemi_dsa_tornado_low_importance_pc.png", sep=""),
        plot = p_stemi_pc_low,
-       width = 10,
+       width = 15,
        height = 10,
-       dpi = 300)
+       dpi = figure_dpi)
 
 
 
@@ -255,7 +302,39 @@ varnames <- read_xlsx("data-inputs/NSTEMI_masterfile_160725.xlsm",
                              "Utility of reinfarction",
                              "Utility post-reinfarction",
                              "Utility of stroke",
-                             "Utility post-stroke"))
+                             "Utility post-stroke")) %>%
+  mutate(parameter.list = parameter.list %>%
+           str_replace_all("_",
+                           ", ") %>%
+           str_replace_all("  ",
+                           " ") %>%
+           str_replace_all("Odds Ratio",
+                           "OR") %>%
+           str_replace_all("Risk Ratio",
+                           "RR") %>%
+           str_replace_all("annual utility decrement A",
+                           "Annual utility decrement due to dyspnoea A") %>%
+           str_replace_all("AC", "clopidogrel") %>%
+           str_replace_all("AT", "ticagrelor") %>%
+           str_replace_all("AP", "prasugrel") %>%
+           str_replace_all("Cost, PCI", "Cost of PCI") %>%
+           str_replace_all("Gendrive test price", "POC test cost") %>%
+           str_replace_all("utility decrements", "Utility decrement,") %>%
+           str_replace_all(", risk", " risk") %>%
+           str_replace_all(", ratio", " ratio") %>%
+           str_replace_all("decrement apply for", "decrement,") %>%
+           str_to_sentence() %>%
+           str_replace_all("pci", "PCI") %>%
+           str_replace_all("Poc", "POC") %>%
+           str_replace_all("Or,", "OR,") %>%
+           str_replace_all("Smr,", "SMR,") %>%
+           str_replace_all("Odds ratio", "OR") %>%
+           str_replace_all("markov", "Markov") %>%
+           str_replace_all("mi,", "reinfarction,") %>%
+           str_replace_all("Stroke with clopidogrel", "Stroke probability in decision tree, clopidogrel") %>%
+           str_replace_all("MI with clopidogrel", "Reinfarction probability in decision tree, clopidogrel") %>%
+           str_replace_all("Major bleeding with clopidogrel", "Major bleed probability in decision tree, clopidogrel") %>%
+           str_replace_all("Minor bleeding with clopidogrel", "Minor bleed probability in decision tree, clopidogrel"))
 
 nstemi_arm_comparison <- read.csv("outputs/nstemi_arm_comparison.csv")
 baseline_inc_nmb <- nstemi_arm_comparison$inc[
@@ -265,17 +344,17 @@ nstemi_dsa_results <- read.csv(
   file = "outputs/nstemi_one_way_sensitivity_analysis.csv") %>%
   select(c(scenario,
            inc_nmb)) %>%
-  mutate(direction = ifelse(grepl("high", scenario),
+  mutate(Direction = ifelse(grepl("high", scenario),
                             "High",
                             "Low")) %>%
   mutate(scenario = str_replace(scenario,
                                 "high_|low_",
                                 "")) %>%
-  pivot_wider(names_from = direction,
+  pivot_wider(names_from = Direction,
               values_from = inc_nmb) %>%
   mutate(width = abs(High - Low)) %>%
   pivot_longer(cols = c(High, Low),
-               names_to = "direction",
+               names_to = "Direction",
                values_to = "inc_nmb") %>%
   mutate(diff = 100 * (inc_nmb - baseline_inc_nmb) / baseline_inc_nmb) %>%
   left_join(varnames, by = c("scenario" = "scenario")) %>%
@@ -286,13 +365,16 @@ p_nstemi_high <-nstemi_dsa_results %>%
   filter(width > 20) %>%
   ggplot(aes(x = inc_nmb,
              y = scenario,
-             fill = direction)) +
+             fill = Direction)) +
   geom_col(orientation = "y") +
   geom_vline(aes(xintercept = baseline_inc_nmb),
              alpha = .5) +
   scale_x_continuous(trans = scales::trans_new("shift",
                                                transform = function(x) {x - baseline_inc_nmb},
                                                inverse = function(x) {x + baseline_inc_nmb})) +
+  theme(text = element_text(size = 20),
+        axis.text.y = element_text(angle = 22.5)) +
+  theme(plot.margin = unit(c(0,0,3,0), "cm")) +
   xlab("Incremental net monetary benefit") +
   ylab("")
 
@@ -300,13 +382,16 @@ p_nstemi_low <-nstemi_dsa_results %>%
   filter(width <= 20) %>%
   ggplot(aes(x = inc_nmb,
              y = scenario,
-             fill = direction)) +
+             fill = Direction)) +
   geom_col(orientation = "y") +
   geom_vline(aes(xintercept = baseline_inc_nmb),
              alpha = .5) +
   scale_x_continuous(trans = scales::trans_new("shift",
                                                transform = function(x) {x - baseline_inc_nmb},
                                                inverse = function(x) {x + baseline_inc_nmb})) +
+  theme(text = element_text(size = 20),
+        axis.text.y = element_text(angle = 22.5)) +
+  theme(plot.margin = unit(c(0,0,3,0), "cm")) +
   xlab("Incremental net monetary benefit") +
   ylab("")
 
@@ -314,10 +399,13 @@ p_nstemi_pc_high <- nstemi_dsa_results %>%
   filter(width > 20) %>%
   ggplot(aes(x = diff,
              y = scenario,
-             fill = direction)) +
+             fill = Direction)) +
   geom_col(orientation = "y") +
   geom_vline(aes(xintercept = 0.),
              alpha = .5) +
+  theme(text = element_text(size = 20),
+        axis.text.y = element_text(angle = 22.5)) +
+  theme(plot.margin = unit(c(0,0,3,0), "cm")) +
   xlab("% difference in INMB") +
   ylab("")
 
@@ -325,10 +413,13 @@ p_nstemi_pc_low <- nstemi_dsa_results %>%
   filter(width <= 20) %>%
   ggplot(aes(x = diff,
              y = scenario,
-             fill = direction)) +
+             fill = Direction)) +
   geom_col(orientation = "y") +
   geom_vline(aes(xintercept = 0.),
              alpha = .5) +
+  theme(text = element_text(size = 20),
+        axis.text.y = element_text(angle = 22.5)) +
+  theme(plot.margin = unit(c(0,0,3,0), "cm")) +
   xlab("% difference in INMB") +
   ylab("")
 
@@ -336,21 +427,21 @@ p_nstemi_pc_low <- nstemi_dsa_results %>%
 
 ggsave(paste("plots/nstemi_dsa_tornado_high_importance.png", sep=""),
        plot = p_nstemi_high,
-       width = 10,
+       width = 15,
        height = 10,
-       dpi = 300)
+       dpi = figure_dpi)
 ggsave(paste("plots/nstemi_dsa_tornado_low_importance.png", sep=""),
        plot = p_nstemi_low,
-       width = 10,
+       width = 15,
        height = 10,
-       dpi = 300)
+       dpi = figure_dpi)
 ggsave(paste("plots/nstemi_dsa_tornado_high_importance_pc.png", sep=""),
        plot = p_nstemi_pc_high,
-       width = 10,
+       width = 15,
        height = 10,
-       dpi = 300)
+       dpi = figure_dpi)
 ggsave(paste("plots/nstemi_dsa_tornado_low_importance_pc.png", sep=""),
        plot = p_nstemi_pc_low,
-       width = 10,
+       width = 15,
        height = 10,
-       dpi = 300)
+       dpi = figure_dpi)
