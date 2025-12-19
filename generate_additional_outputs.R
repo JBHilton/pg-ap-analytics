@@ -84,7 +84,8 @@ stemi_df <- data.frame(var = colnames(extra_stemi_outputs),
   mutate(estimate = sapply(1:length(var), FUN = function(i) print_ci(mean[i], L[i], U[i], decimals[i]))) %>%
   select(var, estimate)
 write.csv(stemi_df,
-          file = "formatted_outputs/additional_outputs_stemi.csv")
+          file = "formatted_outputs/additional_outputs_stemi.csv",
+          row.names = FALSE)
 
 
 extra_nstemi_outputs <- data.frame(pop_inc_life_years_mean = summarise(nstemi_samples[1:n_sample, ], mean = mean(nstemi_size * (life_years_pc - life_years_sc)))$mean,
@@ -138,5 +139,6 @@ nstemi_df <- data.frame(var = colnames(extra_nstemi_outputs),
                            no = 2)) %>%
   mutate(estimate = sapply(1:length(var), FUN = function(i) print_ci(mean[i], L[i], U[i], decimals[i]))) %>%
   select(var, estimate)
-write.csv(stemi_df,
-          file = "formatted_outputs/additional_outputs_nstemi.csv")
+write.csv(nstemi_df,
+          file = "formatted_outputs/additional_outputs_nstemi.csv",
+          row.names = FALSE)
