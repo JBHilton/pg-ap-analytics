@@ -80,7 +80,9 @@ stemi_df <- data.frame(var = colnames(extra_stemi_outputs),
               values_from = value) %>%
   mutate(decimals = ifelse(grepl("nmb", var),
                            yes = 0,
-                           no = 2)) %>%
+                           no = ifelse(grepl("qalys", var),
+                                       yes = 4,
+                                       no = 2))) %>%
   mutate(estimate = sapply(1:length(var), FUN = function(i) print_ci(mean[i], L[i], U[i], decimals[i]))) %>%
   select(var, estimate)
 write.csv(stemi_df,
@@ -136,7 +138,9 @@ nstemi_df <- data.frame(var = colnames(extra_nstemi_outputs),
               values_from = value) %>%
   mutate(decimals = ifelse(grepl("nmb", var),
                            yes = 0,
-                           no = 2)) %>%
+                           no = ifelse(grepl("qalys", var),
+                                       yes = 4,
+                                       no = 2))) %>%
   mutate(estimate = sapply(1:length(var), FUN = function(i) print_ci(mean[i], L[i], U[i], decimals[i]))) %>%
   select(var, estimate)
 write.csv(nstemi_df,
