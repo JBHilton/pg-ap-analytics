@@ -1,6 +1,10 @@
 # This script contains functions needed for carrying out probabilistic
 # sensitivity analysis.
 
+# Get CE threshold:
+ce_threshold = parameters_STEMI$value[
+  parameters_STEMI$variable.name=="ce_thresh"]
+
 # Start ages specified on row 1 of parameter matrices:
 start_age_female <- parameters_STEMI$value[(parameters_STEMI$variable.name=="start_age_female")|(parameters_STEMI$variable.name=="start_age_f")]
 start_age_male <- parameters_STEMI$value[(parameters_STEMI$variable.name=="start_age_male")|(parameters_STEMI$variable.name=="start_age_m")]
@@ -304,12 +308,20 @@ run_PSA_arm_comparison <- function(par_df,
   
   # SA12: 1.5% discount rate
   if (scenario == "SA12"){
-    discount_by_cycle <- (1 / (1 + 0.015)^seq(
+    utility_discount <- (1 / (1 + 0.015)^seq(
+      1.0, time_hor-1, by = time_step))
+    
+    cost_discount <- (1 / (1 + 0.015)^seq(
       1.0, time_hor-1, by = time_step))
   }else{
-    discount_by_cycle <- (1 / (1 + par_df$value[(
-      par_df$variable.name=="qaly_discount_rate")|
-        (par_df$variable.name=="disc_effect_b")])^seq(
+    utility_discount <- (1 / (1 + parameters_STEMI$value[(
+      parameters_STEMI$variable.name=="qaly_discount_rate")|
+        (parameters_STEMI$variable.name=="disc_effect_b")])^seq(
+          1.0, time_hor-1, by = time_step))
+    
+    cost_discount <- (1 / (1 + parameters_STEMI$value[(
+      parameters_STEMI$variable.name=="cost_discount_rate")|
+        (parameters_STEMI$variable.name=="disc_cost_b")])^seq(
           1.0, time_hor-1, by = time_step))
   }
   
@@ -990,19 +1002,19 @@ run_PSA_arm_comparison <- function(par_df,
                  mi +
                  post_mi +
                  death) %>%
-        mutate(discounted_utility = undiscounted_utility * discount_by_cycle) %>%
+        mutate(discounted_utility = undiscounted_utility * utility_discount) %>%
         mutate(no_event =
-                 no_event * discount_by_cycle ) %>%
+                 no_event * utility_discount ) %>%
         mutate(stroke =
-                 stroke * discount_by_cycle ) %>%
+                 stroke * utility_discount ) %>%
         mutate(post_stroke =
-                 post_stroke * discount_by_cycle ) %>%
+                 post_stroke * utility_discount ) %>%
         mutate(mi =
-                 mi * discount_by_cycle ) %>%
+                 mi * utility_discount ) %>%
         mutate(post_mi =
-                 post_mi * discount_by_cycle ) %>%
+                 post_mi * utility_discount ) %>%
         mutate(death =
-                 death * discount_by_cycle )
+                 death * utility_discount )
       halfstep_utils <- (0.5 * (MT[2:(time_hor), ] + rbind(MT[3:(time_hor), ], 0))) %>%
         mutate(no_event =
                  no_event * value_by_state$no_event ) %>%
@@ -1022,19 +1034,19 @@ run_PSA_arm_comparison <- function(par_df,
                  mi +
                  post_mi +
                  death) %>%
-        mutate(discounted_utility = undiscounted_utility * discount_by_cycle) %>%
+        mutate(discounted_utility = undiscounted_utility * utility_discount) %>%
         mutate(no_event =
-                 no_event * discount_by_cycle ) %>%
+                 no_event * utility_discount ) %>%
         mutate(stroke =
-                 stroke * discount_by_cycle ) %>%
+                 stroke * utility_discount ) %>%
         mutate(post_stroke =
-                 post_stroke * discount_by_cycle ) %>%
+                 post_stroke * utility_discount ) %>%
         mutate(mi =
-                 mi * discount_by_cycle ) %>%
+                 mi * utility_discount ) %>%
         mutate(post_mi =
-                 post_mi * discount_by_cycle ) %>%
+                 post_mi * utility_discount ) %>%
         mutate(death =
-                 death * discount_by_cycle )
+                 death * utility_discount )
       MT_utils$halfstep <- halfstep_utils$undiscounted_utility
       MT_utils$discounted_halfstep <- halfstep_utils$discounted_utility
       return(MT_utils)
@@ -1067,22 +1079,22 @@ run_PSA_arm_comparison <- function(par_df,
                  mi +
                  post_mi +
                  death) %>%
-        mutate(discounted_cost = undiscounted_cost * discount_by_cycle) %>%
+        mutate(discounted_cost = undiscounted_cost * cost_discount) %>%
         mutate(no_event =
-                 no_event * discount_by_cycle ) %>%
+                 no_event * cost_discount ) %>%
         mutate(stroke =
-                 stroke * discount_by_cycle ) %>%
+                 stroke * cost_discount ) %>%
         mutate(post_stroke =
-                 post_stroke * discount_by_cycle ) %>%
+                 post_stroke * cost_discount ) %>%
         mutate(mi =
-                 mi * discount_by_cycle ) %>%
+                 mi * cost_discount ) %>%
         mutate(post_mi =
-                 post_mi * discount_by_cycle ) %>%
+                 post_mi * cost_discount ) %>%
         mutate(death =
-                 death * discount_by_cycle )
+                 death * cost_discount )
       MT_costs$halfstep <- 0.5 * (MT_costs$undiscounted_cost[1:39] +
                                     c(MT_costs$undiscounted_cost[2:39], 0))
-      MT_costs$discounted_halfstep <- MT_costs$halfstep * discount_by_cycle
+      MT_costs$discounted_halfstep <- MT_costs$halfstep * cost_discount
       return(MT_costs)
     }
     }
@@ -1244,7 +1256,7 @@ run_PSA_arm_comparison <- function(par_df,
                                ratio_dc_hs = c(NA,
                                                NA,
                                                ICER_disc_hs),
-                               nmb_per_capita = 20000 * c(dt_sc_util + sum(utility_sc$discounted_halfstep),
+                               nmb_per_capita = ce_threshold * c(dt_sc_util + sum(utility_sc$discounted_halfstep),
                                                           dt_pc_util + sum(utility_pc$discounted_halfstep),
                                                           (dt_pc_util + sum(utility_pc$discounted_halfstep)) -
                                                             (dt_sc_util + sum(utility_sc$discounted_halfstep))) -

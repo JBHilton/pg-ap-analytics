@@ -235,7 +235,7 @@ arm_comparison <- data.frame(arm = c("sc", "pc", "inc"),
                              icer = c(NA,
                                           NA,
                                           ICER_disc_hs),
-                             nmb = 20000 * c(dt_sc_util + sum(utility_sc$discounted_halfstep),
+                             nmb = ce_threshold * c(dt_sc_util + sum(utility_sc$discounted_halfstep),
                                                         dt_pc_util + sum(utility_pc$discounted_halfstep),
                                                         (dt_pc_util + sum(utility_pc$discounted_halfstep)) -
                                                           (dt_sc_util + sum(utility_sc$discounted_halfstep))) -

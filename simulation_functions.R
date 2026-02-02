@@ -414,19 +414,19 @@ utils_from_markov_trace <- function(MT,
              mi +
              post_mi +
              death) %>%
-    mutate(discounted_utility = undiscounted_utility * discount_by_cycle) %>%
+    mutate(discounted_utility = undiscounted_utility * utility_discount) %>%
     mutate(no_event =
-             no_event * discount_by_cycle ) %>%
+             no_event * utility_discount ) %>%
     mutate(stroke =
-             stroke * discount_by_cycle ) %>%
+             stroke * utility_discount ) %>%
     mutate(post_stroke =
-             post_stroke * discount_by_cycle ) %>%
+             post_stroke * utility_discount ) %>%
     mutate(mi =
-             mi * discount_by_cycle ) %>%
+             mi * utility_discount ) %>%
     mutate(post_mi =
-             post_mi * discount_by_cycle ) %>%
+             post_mi * utility_discount ) %>%
     mutate(death =
-             death * discount_by_cycle )
+             death * utility_discount )
   halfstep_utils <- (0.5 * (MT[2:(time_hor), ] + rbind(MT[3:(time_hor), ], 0))) %>%
     mutate(no_event =
              no_event * value_by_state$no_event ) %>%
@@ -446,19 +446,19 @@ utils_from_markov_trace <- function(MT,
              mi +
              post_mi +
              death) %>%
-    mutate(discounted_utility = undiscounted_utility * discount_by_cycle) %>%
+    mutate(discounted_utility = undiscounted_utility * utility_discount) %>%
     mutate(no_event =
-             no_event * discount_by_cycle ) %>%
+             no_event * utility_discount ) %>%
     mutate(stroke =
-             stroke * discount_by_cycle ) %>%
+             stroke * utility_discount ) %>%
     mutate(post_stroke =
-             post_stroke * discount_by_cycle ) %>%
+             post_stroke * utility_discount ) %>%
     mutate(mi =
-             mi * discount_by_cycle ) %>%
+             mi * utility_discount ) %>%
     mutate(post_mi =
-             post_mi * discount_by_cycle ) %>%
+             post_mi * utility_discount ) %>%
     mutate(death =
-             death * discount_by_cycle )
+             death * utility_discount )
   MT_utils$halfstep <- halfstep_utils$undiscounted_utility
   MT_utils$discounted_halfstep <- halfstep_utils$discounted_utility
   return(MT_utils)
@@ -491,22 +491,22 @@ costs_from_markov_trace <- function(MT,
              mi +
              post_mi +
              death) %>%
-    mutate(discounted_cost = undiscounted_cost * discount_by_cycle) %>%
+    mutate(discounted_cost = undiscounted_cost * cost_discount) %>%
     mutate(no_event =
-             no_event * discount_by_cycle ) %>%
+             no_event * cost_discount ) %>%
     mutate(stroke =
-             stroke * discount_by_cycle ) %>%
+             stroke * cost_discount ) %>%
     mutate(post_stroke =
-             post_stroke * discount_by_cycle ) %>%
+             post_stroke * cost_discount ) %>%
     mutate(mi =
-             mi * discount_by_cycle ) %>%
+             mi * cost_discount ) %>%
     mutate(post_mi =
-             post_mi * discount_by_cycle ) %>%
+             post_mi * cost_discount ) %>%
     mutate(death =
-             death * discount_by_cycle )
+             death * cost_discount )
   MT_costs$halfstep <- 0.5 * (MT_costs$undiscounted_cost[1:39] +
                                 c(MT_costs$undiscounted_cost[2:39], 0))
-  MT_costs$discounted_halfstep <- MT_costs$halfstep * discount_by_cycle
+  MT_costs$discounted_halfstep <- MT_costs$halfstep * cost_discount
   return(MT_costs)
 }
 
@@ -551,14 +551,14 @@ run_arm_comparison <- function(
                                                          select(-time_step)) *
                                                as.matrix(markov_utils))) %>%
     mutate(discounted_utility =
-             utility * discount_by_cycle)
+             utility * utility_discount)
   # Expected costs:
   MC_costs_pc <- data.frame(time_step = 1:(time_hor-1),
                             cost = rowSums(as.matrix(MT_pc %>%
                                                        select(-time_step)) %*%
                                              as.matrix(markov_costs$value))) %>%
     mutate(discounted_cost =
-             cost * discount_by_cycle)
+             cost * cost_discount)
   
   
   # Mean life years:
@@ -599,14 +599,14 @@ run_arm_comparison <- function(
                                                          select(-time_step)) *
                                                as.matrix(markov_utils))) %>%
     mutate(discounted_utility =
-             utility * discount_by_cycle)
+             utility * utility_discount)
   # Expected costs:
   MC_costs_sc <- data.frame(time_step = 1:(time_hor-1),
                             cost = rowSums(as.matrix(MT_sc %>%
                                                        select(-time_step)) %*%
                                              as.matrix(markov_costs$value))) %>%
     mutate(discounted_cost =
-             cost * discount_by_cycle)
+             cost * cost_discount)
   
   # Mean life years:
   life_years_sc <- (1-P0_sc["death"]) + sum(1 - MT_sc$death)

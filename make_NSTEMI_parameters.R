@@ -139,7 +139,6 @@ parameters_STEMI <- read_xlsx("data-inputs/NSTEMI_masterfile_160725.xlsm",
   type.convert(as.is = TRUE) %>% # Make sure numbers are numbers, not characters
   filter(!is.na(parameter.list)) %>% # Remove empty lines
   filter(!grepl("_sa", variable.name)) %>% # Drop sensitivity analysis values
-  filter(!(parameter.list == "CE threshold")) %>% # Remove this since a single value isn't provided
   mutate(variable.name = variable.name %>%
            str_to_lower() %>% # Standardise parameter names for use with other objects
            str_replace_all(" ", "_") %>%
@@ -160,6 +159,10 @@ parameters_STEMI <- read_xlsx("data-inputs/NSTEMI_masterfile_160725.xlsm",
            str_replace_all("maj_bleed", "major_bleed") %>%
            str_replace_all("bleeding", "bleed")) %>%
   mutate(value = as.numeric(value)) # Convert values from characters to numbers
+
+# Get CE threshold:
+ce_threshold = parameters_STEMI$value[
+  parameters_STEMI$variable.name=="ce_thresh"]
 
 # Extract probabilities and odds/hazard ratios for each drug/genotype:
 baseline_prob_df <- parameters_STEMI %>%
@@ -204,10 +207,15 @@ prob_df <- rescale_probs(baseline_prob_df,
                          ac_no_lof_ratio_df)
 
 # Set up scaling for discounting by time step
-discount_by_cycle <- (1 / (1 + parameters_STEMI$value[(
+utility_discount <- (1 / (1 + parameters_STEMI$value[(
   parameters_STEMI$variable.name=="qaly_discount_rate")|
     (parameters_STEMI$variable.name=="disc_effect_b")])^seq(
-    1.0, time_hor-1, by = time_step))
+      1.0, time_hor-1, by = time_step))
+
+cost_discount <- (1 / (1 + parameters_STEMI$value[(
+  parameters_STEMI$variable.name=="cost_discount_rate")|
+    (parameters_STEMI$variable.name=="disc_cost_b")])^seq(
+      1.0, time_hor-1, by = time_step))
 
 # Note: following appears to be unnecessary
 # # Convert hazard rates to probabilities:

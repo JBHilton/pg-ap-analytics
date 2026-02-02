@@ -16,7 +16,7 @@ CASE <- "STEMI"
 
 SAVE_OUTPUTS <- TRUE
 
-n_sample <- 1e4
+n_sample <- 1e5
 dir.create("outputs",
            showWarnings = FALSE)
 SAVE_FILEPATH <- paste("outputs/stemi_n_", n_sample, sep="")
@@ -96,7 +96,6 @@ parameters_STEMI <- read_xlsx("data-inputs/masterfile_111025.xlsx",
   type.convert(as.is = TRUE) %>% # Make sure numbers are numbers, not characters
   filter(!is.na(parameter.list)) %>% # Remove empty lines
   filter(!grepl("_sa", variable.name)) %>% # Drop sensitivity analysis values
-  filter(!(parameter.list == "CE threshold")) %>% # Remove this since a single value isn't provided
   mutate(variable.name = variable.name %>%
            str_to_lower() %>% # Standardise parameter names for use with other objects
            str_replace_all(" ", "_") %>%
