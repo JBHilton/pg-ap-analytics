@@ -1,4 +1,6 @@
 # pg-ap-analytics
+
+[![DOI](https://zenodo.org/badge/936770344.svg)](https://doi.org/10.5281/zenodo.20629080)
  
 This repository contains code used to generate the results in the following preprint:
 * Alireza Mahboub-Ahari, Joe Hilton, Maria Rodrigues, John McDermott, Richard Body, William G Newman, and Katherine Payne (2026) &quot;Implementing a CYP2C19-guided approach for prescribing dual antiplatelet therapy in acute coronary syndrome for patients undergoing percutaneous coronary intervention: a cost-effectiveness analysis.&quot; <i>Research Square</i> [https://doi.org/10.21203/rs.3.rs-9050351/v1]
